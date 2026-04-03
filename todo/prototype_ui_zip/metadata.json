@@ -1,0 +1,7 @@
+{
+  "name": "Remix: 2x New Kado Hunter 3000 - HUNTER NET UPGRADE",
+  "description": "A premium, mobile-first TCG collector\u0027s experience featuring AI card recognition, market intelligence, and portfolio management.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

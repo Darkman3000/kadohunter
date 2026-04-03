@@ -1,0 +1,20 @@
+{
+  "name": "kadohunter",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:mobile": "npm run dev --workspace @kado/mobile",
+    "dev:web": "npm run dev --workspace @kado/web",
+    "dev:convex": "npx convex dev",
+    "build:web": "npm run build --workspace @kado/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "dependencies": {
+    "convex": "^1.32.0"
+  }
+}

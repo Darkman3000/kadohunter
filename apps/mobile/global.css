@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --shimmer-color: rgba(255, 255, 255, 0.08); /* Reduced for consistency */
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Shimmer Sweep Animation */
+  @keyframes shimmer-sweep {
+    0% { transform: translateX(-100%) rotate(45deg); }
+    100% { transform: translateX(100%) rotate(45deg); }
+  }
+
+  .is-new::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    right: -50%;
+    bottom: -50%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--shimmer-color) 45%,
+      var(--shimmer-color) 55%,
+      transparent 100%
+    );
+    transform: rotate(25deg);
+    animation: shimmer-sweep 4s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+}

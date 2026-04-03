@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Kado Hunter",
+    "slug": "kadohunter",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "kadohunter",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kadohunter.app"
+    },
+    "android": {
+      "package": "com.kadohunter.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0a192f",
+        "foregroundImage": "./assets/images/adaptive-icon.png"
+      }
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "backgroundColor": "#0a192f"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0a192f",
+          "dark": {
+            "backgroundColor": "#0a192f"
+          }
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Kado Hunter needs camera access to scan and identify your trading cards."
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5fa8758f-e153-4a66-ab57-7ad7151d30b6"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.expo/
+.env
+.env.local
+coverage/
+todo/tmp/
+*.zip
+*.log
+.eas/
+*.keystore
+*.jks
+*.p12
+*.mobileprovision

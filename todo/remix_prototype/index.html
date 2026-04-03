@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Kado Hunter 3000</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><rect width='24' height='24' rx='6' fill='%2314b8a6'/><path d='M6 5h4v14H6z' fill='%230f172a'/><path d='M19 5h-4l-5 7 5 7h4l-5-7z' fill='%230f172a'/></svg>" />
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              'midnight': '#0a192f',
+              'navy': '#112240',
+              'umber': '#c7a77b',
+              'umber-dark': '#b3956d',
+              'light-slate': '#ccd6f6',
+              'slate-text': '#8892b0',
+            },
+            boxShadow: {
+              'soft-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              'holo': '0 20px 40px -10px rgba(0,0,0,0.5), 0 0 20px rgba(199,167,123,0.2)',
+            },
+            transitionTimingFunction: {
+              'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+              'bounce-sm': 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            },
+            animation: {
+              'float': 'float 6s ease-in-out infinite',
+              'scan': 'scan 2s linear infinite',
+              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'fade-in-up': 'fade-in-up 0.3s ease-out forwards',
+              'spring-up': 'spring-up 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+              'shake': 'shake 0.5s ease-in-out',
+              'marquee': 'marquee 80s linear infinite',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-10px)' },
+              },
+              scan: {
+                '0%': { top: '0%' },
+                '100%': { top: '100%' },
+              },
+              'spring-up': {
+                '0%': { opacity: '0', transform: 'translateY(20px) scale(0.95)' },
+                '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+              },
+              'fade-in-up': {
+                'from': { opacity: '0', transform: 'translateY(20px)' },
+                'to': { opacity: '1', transform: 'translateY(0)' },
+              },
+              shake: {
+                '10%, 90%': { transform: 'translateX(-1px)' },
+                '20%, 80%': { transform: 'translateX(2px)' },
+                '30%, 50%, 70%': { transform: 'translateX(-4px)' },
+                '40%, 60%': { transform: 'translateX(4px)' },
+              },
+              marquee: {
+                '0%': { transform: 'translateX(0%)' },
+                '100%': { transform: 'translateX(-50%)' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      body {
+        -webkit-tap-highlight-color: transparent;
+        background-color: #0a192f;
+        color: #ccd6f6;
+      }
+
+      @keyframes shimmer-sweep {
+        0% { transform: translate(-50%, -50%) rotate(45deg) translateX(-100%); }
+        100% { transform: translate(-50%, -50%) rotate(45deg) translateX(100%); }
+      }
+      
+      .card-thumbnail {
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .card-thumbnail.is-new::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 300%;
+        height: 300%;
+        background: linear-gradient(
+          90deg,
+          transparent 40%,
+          var(--shimmer-color, rgba(255, 255, 255, 0.5)) 50%,
+          transparent 60%
+        );
+        transform: translate(-50%, -50%) rotate(45deg);
+        animation: shimmer-sweep 5s ease-in-out infinite alternate;
+        pointer-events: none;
+        mix-blend-mode: overlay;
+        z-index: 10;
+      }
+
+      /* Holographic Effect Classes */
+      .holo-card-container {
+        perspective: 1000px;
+        transform-style: preserve-3d;
+      }
+      
+      .holo-card {
+        transform-style: preserve-3d;
+        transition: transform 0.1s ease-out;
+        will-change: transform;
+      }
+      
+      .holo-glare {
+        background: radial-gradient(
+          farthest-corner circle at var(--pointer-x) var(--pointer-y),
+          rgba(255, 255, 255, 0.4) 0%,
+          rgba(255, 255, 255, 0.1) 40%,
+          transparent 80%
+        );
+        mix-blend-mode: overlay;
+        pointer-events: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "recharts": "https://aistudiocdn.com/recharts@^2.12.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="antialiased selection:bg-umber selection:text-midnight">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
