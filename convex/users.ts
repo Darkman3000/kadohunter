@@ -1,54 +1,18 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-
-async function getUserByTokenIdentifier(ctx: any, tokenIdentifier: string) {
-    return await ctx.db
-        .query("users")
-        .withIndex("by_token", (q: any) => q.eq("tokenIdentifier", tokenIdentifier))
-        .first();
-}
-
-async function getAuthenticatedUser(ctx: any) {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-        return null;
-    }
-
-    const user = await getUserByTokenIdentifier(ctx, identity.tokenIdentifier);
-    return { identity, user };
-}
-
-async function requireAuthorizedUser(ctx: any, userId: string) {
-    const auth = await getAuthenticatedUser(ctx);
-    if (!auth?.user) {
-        throw new Error("Unauthorized");
-    }
-
-    if (auth.user._id !== userId) {
-        throw new Error("Unauthorized");
-    }
-
-    return auth.user;
-}
-
-async function requireCurrentUser(ctx: any) {
-    const auth = await getAuthenticatedUser(ctx);
-    if (!auth?.user) {
-        throw new Error("Unauthorized");
-    }
-
-    return auth.user;
-}
+import {
+    getUserByTokenIdentifier,
+    getAuthenticatedUser,
+    requireAuthorizedUser,
+    requireCurrentUser,
+    requireOwnedScan,
+} from "./utils/auth";
 
 export const getCurrentUser = query({
     args: {},
     handler: async (ctx) => {
         const auth = await getAuthenticatedUser(ctx);
-        if (!auth) {
-            return null;
-        }
-
-        return auth.user;
+        return auth?.user ?? null;
     },
 });
 
@@ -107,10 +71,8 @@ export const storeUser = mutation({
             lastScanDate: new Date().toISOString().split("T")[0],
         });
 
-        // Generate hunterTag based on the new ID
         const suffix = userId.slice(-4).toUpperCase();
-        const hunterTag = `KDO-${suffix}`;
-        await ctx.db.patch(userId, { hunterTag });
+        await ctx.db.patch(userId, { hunterTag: `KDO-${suffix}` });
 
         return userId;
     },
@@ -120,24 +82,19 @@ export const logScanAttempt = mutation({
     args: { userId: v.id("users") },
     handler: async (ctx, args) => {
         const user = await requireAuthorizedUser(ctx, args.userId);
-
         const today = new Date().toISOString().split("T")[0];
 
         if (user.lastScanDate !== today) {
-            await ctx.db.patch(args.userId, {
-                scansToday: 1,
-                lastScanDate: today,
-            });
+            await ctx.db.patch(args.userId, { scansToday: 1, lastScanDate: today });
             return true;
         }
 
+        // Scan limit from @kado/domain: scanLimits.free = 5
         if (user.tier === "free" && user.scansToday >= 5) {
             return false;
         }
 
-        await ctx.db.patch(args.userId, {
-            scansToday: user.scansToday + 1,
-        });
+        await ctx.db.patch(args.userId, { scansToday: user.scansToday + 1 });
         return true;
     },
 });
@@ -161,24 +118,12 @@ export const saveScanToCollection = mutation({
     handler: async (ctx, args) => {
         await requireAuthorizedUser(ctx, args.userId);
 
-        const savedScan = {
-            userId: args.userId,
-            gameCode: args.gameCode,
-            cardId: args.cardId,
-            cardName: args.cardName,
-            setName: args.setName,
-            rarity: args.rarity,
-            number: args.number,
-            condition: args.condition,
-            foil: args.foil,
-            finish: args.finish,
-            marketTrend: args.marketTrend,
-            estimatedPrice: args.estimatedPrice,
-            imageUrl: args.imageUrl,
+        const { userId, ...cardFields } = args;
+        return await ctx.db.insert("savedScans", {
+            userId,
+            ...cardFields,
             createdAt: Date.now(),
-        };
-
-        return await ctx.db.insert("savedScans", savedScan);
+        });
     },
 });
 
@@ -186,7 +131,6 @@ export const getUserCollection = query({
     args: { userId: v.id("users") },
     handler: async (ctx, args) => {
         await requireAuthorizedUser(ctx, args.userId);
-
         return await ctx.db
             .query("savedScans")
             .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -199,7 +143,6 @@ export const getBinderScans = query({
     args: {},
     handler: async (ctx) => {
         const user = await requireCurrentUser(ctx);
-        
         return await ctx.db
             .query("savedScans")
             .withIndex("by_user", (q) => q.eq("userId", user._id))
@@ -212,7 +155,6 @@ export const getUserStats = query({
     args: { userId: v.id("users") },
     handler: async (ctx, args) => {
         const user = await requireAuthorizedUser(ctx, args.userId);
-
         const collection = await ctx.db
             .query("savedScans")
             .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -237,27 +179,15 @@ export const registerPushToken = mutation({
 export const getCardById = query({
     args: { scanId: v.id("savedScans") },
     handler: async (ctx, args) => {
-        const currentUser = await requireCurrentUser(ctx);
-
-        const card = await ctx.db.get(args.scanId);
-        if (!card || card.userId !== currentUser._id) {
-            return null;
-        }
-
-        return card;
+        const { scan } = await requireOwnedScan(ctx, args.scanId);
+        return scan;
     },
 });
 
 export const deleteFromCollection = mutation({
     args: { scanId: v.id("savedScans") },
     handler: async (ctx, args) => {
-        const currentUser = await requireCurrentUser(ctx);
-
-        const card = await ctx.db.get(args.scanId);
-        if (!card || card.userId !== currentUser._id) {
-            throw new Error("Card not found");
-        }
-
+        await requireOwnedScan(ctx, args.scanId);
         await ctx.db.delete(args.scanId);
     },
 });
@@ -268,16 +198,8 @@ export const updateCardCondition = mutation({
         condition: v.string(),
     },
     handler: async (ctx, args) => {
-        const currentUser = await requireCurrentUser(ctx);
-
-        const scan = await ctx.db.get(args.scanId);
-        if (!scan || scan.userId !== currentUser._id) {
-            throw new Error("Card not found");
-        }
-
-        await ctx.db.patch(args.scanId, {
-            condition: args.condition,
-        });
+        await requireOwnedScan(ctx, args.scanId);
+        await ctx.db.patch(args.scanId, { condition: args.condition });
     },
 });
 
@@ -291,20 +213,18 @@ export const getStagedScanById = query({
 export const getStagedScans = query({
     args: { userId: v.optional(v.id("users")), deviceId: v.optional(v.string()) },
     handler: async (ctx, args) => {
-        const { userId, deviceId } = args;
-
-        if (userId) {
+        if (args.userId) {
             return await ctx.db
                 .query("stagedScans")
-                .withIndex("by_user", (q) => q.eq("userId", userId))
+                .withIndex("by_user", (q) => q.eq("userId", args.userId!))
                 .order("desc")
                 .collect();
         }
-        
-        if (deviceId) {
+
+        if (args.deviceId) {
             return await ctx.db
                 .query("stagedScans")
-                .withIndex("by_device", (q) => q.eq("deviceId", deviceId))
+                .withIndex("by_device", (q) => q.eq("deviceId", args.deviceId!))
                 .order("desc")
                 .collect();
         }
@@ -340,7 +260,7 @@ export const saveToStaged = mutation({
             marketPrice: args.marketPrice,
             reviewed: false,
             createdAt: Date.now(),
-            expiresAt: Date.now() + 72 * 60 * 60 * 1000, // 72 hours
+            expiresAt: Date.now() + 72 * 60 * 60 * 1000,
         });
     },
 });
@@ -348,10 +268,7 @@ export const saveToStaged = mutation({
 export const updateCardQuantity = mutation({
     args: { scanId: v.id("savedScans"), quantity: v.number() },
     handler: async (ctx, args) => {
-        const auth = await getAuthenticatedUser(ctx);
-        if (!auth?.user) throw new Error("Not authenticated");
-        const scan = await ctx.db.get(args.scanId);
-        if (!scan || scan.userId !== auth.user._id) throw new Error("Not found");
+        await requireOwnedScan(ctx, args.scanId);
         if (args.quantity < 1) throw new Error("Quantity must be at least 1");
         await ctx.db.patch(args.scanId, { quantity: args.quantity });
     },
@@ -360,10 +277,7 @@ export const updateCardQuantity = mutation({
 export const toggleFavorite = mutation({
     args: { scanId: v.id("savedScans") },
     handler: async (ctx, args) => {
-        const auth = await getAuthenticatedUser(ctx);
-        if (!auth?.user) throw new Error("Not authenticated");
-        const scan = await ctx.db.get(args.scanId);
-        if (!scan || scan.userId !== auth.user._id) throw new Error("Not found");
-        await ctx.db.patch(args.scanId, { isFavorite: !(scan.isFavorite ?? false) });
+        const { scan } = await requireOwnedScan(ctx, args.scanId);
+        await ctx.db.patch(args.scanId, { isFavorite: !((scan as any).isFavorite ?? false) });
     },
 });

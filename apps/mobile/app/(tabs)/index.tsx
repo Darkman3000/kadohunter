@@ -48,6 +48,7 @@ import {
   recognitionService,
   type RecognitionResult,
 } from "@/services/recognition";
+import { getGameLabel } from "@/utils/gameLabels";
 
 const FREE_SCAN_LIMIT = 5;
 const LOW_CONFIDENCE_THRESHOLD = 0.65;
@@ -95,22 +96,7 @@ const buildCardId = (result: RecognitionResult) => {
   return slug || `scan-${Date.now().toString(36)}`;
 };
 
-const getGameLabel = (game: RecognitionResult["game"]) => {
-  switch (game) {
-    case "pokemon":
-      return "Pokémon";
-    case "yugioh":
-      return "Yu-Gi-Oh!";
-    case "onepiece":
-      return "One Piece";
-    case "mtg":
-      return "Magic";
-    case "dragonball":
-      return "Dragon Ball";
-    default:
-      return "Unknown TCG";
-  }
-};
+// getGameLabel imported from @/utils/gameLabels
 
 const getRecognitionErrorMessage = (error: unknown) => {
   const message =

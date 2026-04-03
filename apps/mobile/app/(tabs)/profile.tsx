@@ -20,6 +20,7 @@ import { useQuery, useMutation } from "convex/react";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { FriendPicker } from "../../components/FriendPicker";
 import { scanLimits } from "@kado/domain";
 import Animated, { 
@@ -766,8 +767,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const { width: windowWidth } = useWindowDimensions();
-  const isDesktop = Platform.OS === "web" && windowWidth >= 768;
+  const { isDesktop } = useResponsiveLayout();
 
   if (!isAuthLoaded || !isUserLoaded) {
     return <LoadingState label="Loading hunter profile..." />;

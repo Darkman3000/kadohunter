@@ -1,28 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-
-async function getAuthenticatedUser(ctx: any) {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    return await ctx.db
-        .query("users")
-        .withIndex("by_token", (q: any) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-        .first();
-}
-
-async function areFriends(ctx: any, userA: any, userB: any): Promise<boolean> {
-    const forward = await ctx.db
-        .query("friendships")
-        .withIndex("by_pair", (q: any) => q.eq("requesterId", userA).eq("addresseeId", userB))
-        .first();
-    if (forward?.status === "accepted") return true;
-
-    const reverse = await ctx.db
-        .query("friendships")
-        .withIndex("by_pair", (q: any) => q.eq("requesterId", userB).eq("addresseeId", userA))
-        .first();
-    return reverse?.status === "accepted";
-}
+import { getCurrentUserOrNull, requireCurrentUser } from "./utils/auth";
+import { areFriends } from "./utils/friendships";
 
 const tradeCardValidator = v.object({
     scanId: v.id("savedScans"),
@@ -31,6 +10,15 @@ const tradeCardValidator = v.object({
     imageUrl: v.optional(v.string()),
     estimatedPrice: v.optional(v.number()),
 });
+
+async function validateCardOwnership(ctx: any, cards: any[], expectedUserId: string, label: string) {
+    for (const card of cards) {
+        const scan = await ctx.db.get(card.scanId);
+        if (!scan || scan.userId !== expectedUserId) {
+            throw new Error(`${label} doesn't own card: ${card.cardName}`);
+        }
+    }
+}
 
 /** Propose a trade to a friend. */
 export const proposeTrade = mutation({
@@ -41,36 +29,18 @@ export const proposeTrade = mutation({
         message: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
-        if (!user) throw new Error("Not authenticated");
+        const user = await requireCurrentUser(ctx);
         if (user._id === args.receiverId) throw new Error("Cannot trade with yourself");
 
         if (!(await areFriends(ctx, user._id, args.receiverId))) {
             throw new Error("You can only trade with friends");
         }
 
-        // Validate proposer owns their cards
-        for (const card of args.proposerCards) {
-            const scan = await ctx.db.get(card.scanId);
-            if (!scan || scan.userId !== user._id) {
-                throw new Error(`You don't own card: ${card.cardName}`);
-            }
-        }
+        await validateCardOwnership(ctx, args.proposerCards, user._id, "You");
+        await validateCardOwnership(ctx, args.receiverCards, args.receiverId, "Friend");
 
-        // Validate receiver owns their cards
-        for (const card of args.receiverCards) {
-            const scan = await ctx.db.get(card.scanId);
-            if (!scan || scan.userId !== args.receiverId) {
-                throw new Error(`Friend doesn't own card: ${card.cardName}`);
-            }
-        }
-
-        const proposerValue = args.proposerCards.reduce(
-            (sum, c) => sum + (c.estimatedPrice ?? 0), 0
-        );
-        const receiverValue = args.receiverCards.reduce(
-            (sum, c) => sum + (c.estimatedPrice ?? 0), 0
-        );
+        const proposerValue = args.proposerCards.reduce((sum, c) => sum + (c.estimatedPrice ?? 0), 0);
+        const receiverValue = args.receiverCards.reduce((sum, c) => sum + (c.estimatedPrice ?? 0), 0);
 
         return await ctx.db.insert("trades", {
             proposerId: user._id,
@@ -90,27 +60,21 @@ export const proposeTrade = mutation({
 export const acceptTrade = mutation({
     args: { tradeId: v.id("trades") },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
-        if (!user) throw new Error("Not authenticated");
-
+        const user = await requireCurrentUser(ctx);
         const trade = await ctx.db.get(args.tradeId);
         if (!trade) throw new Error("Trade not found");
         if (trade.receiverId !== user._id) throw new Error("Not your trade to accept");
         if (trade.status !== "proposed") throw new Error("Trade is no longer pending");
 
-        // Swap ownership: proposer's cards go to receiver
+        // Swap ownership: proposer's cards → receiver, receiver's cards → proposer
         for (const card of trade.proposerCards) {
             await ctx.db.patch(card.scanId, { userId: user._id });
         }
-        // Swap ownership: receiver's cards go to proposer
         for (const card of trade.receiverCards) {
             await ctx.db.patch(card.scanId, { userId: trade.proposerId });
         }
 
-        await ctx.db.patch(args.tradeId, {
-            status: "accepted",
-            resolvedAt: Date.now(),
-        });
+        await ctx.db.patch(args.tradeId, { status: "accepted", resolvedAt: Date.now() });
     },
 });
 
@@ -118,18 +82,13 @@ export const acceptTrade = mutation({
 export const rejectTrade = mutation({
     args: { tradeId: v.id("trades") },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
-        if (!user) throw new Error("Not authenticated");
-
+        const user = await requireCurrentUser(ctx);
         const trade = await ctx.db.get(args.tradeId);
         if (!trade) throw new Error("Trade not found");
         if (trade.receiverId !== user._id) throw new Error("Not your trade to reject");
         if (trade.status !== "proposed") throw new Error("Trade is no longer pending");
 
-        await ctx.db.patch(args.tradeId, {
-            status: "rejected",
-            resolvedAt: Date.now(),
-        });
+        await ctx.db.patch(args.tradeId, { status: "rejected", resolvedAt: Date.now() });
     },
 });
 
@@ -137,18 +96,13 @@ export const rejectTrade = mutation({
 export const cancelTrade = mutation({
     args: { tradeId: v.id("trades") },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
-        if (!user) throw new Error("Not authenticated");
-
+        const user = await requireCurrentUser(ctx);
         const trade = await ctx.db.get(args.tradeId);
         if (!trade) throw new Error("Trade not found");
         if (trade.proposerId !== user._id) throw new Error("Only the proposer can cancel");
         if (trade.status !== "proposed") throw new Error("Trade is no longer pending");
 
-        await ctx.db.patch(args.tradeId, {
-            status: "cancelled",
-            resolvedAt: Date.now(),
-        });
+        await ctx.db.patch(args.tradeId, { status: "cancelled", resolvedAt: Date.now() });
     },
 });
 
@@ -156,7 +110,7 @@ export const cancelTrade = mutation({
 export const getMyTrades = query({
     args: {},
     handler: async (ctx) => {
-        const user = await getAuthenticatedUser(ctx);
+        const user = await getCurrentUserOrNull(ctx);
         if (!user) return [];
 
         const proposed = await ctx.db
@@ -169,21 +123,18 @@ export const getMyTrades = query({
             .withIndex("by_receiver", (q: any) => q.eq("receiverId", user._id))
             .collect();
 
-        const all = [...proposed, ...received];
-        all.sort((a, b) => b.createdAt - a.createdAt);
+        const all = [...proposed, ...received].sort((a, b) => b.createdAt - a.createdAt);
 
-        // Enrich with user names
-        return await Promise.all(
-            all.map(async (trade) => {
-                const proposer = await ctx.db.get(trade.proposerId);
-                const receiver = await ctx.db.get(trade.receiverId);
-                return {
-                    ...trade,
-                    proposerName: proposer?.name ?? "Unknown",
-                    receiverName: receiver?.name ?? "Unknown",
-                };
-            })
-        );
+        // Batch-collect unique user IDs to avoid N+1
+        const userIds = [...new Set(all.flatMap((t) => [t.proposerId, t.receiverId]))];
+        const users = await Promise.all(userIds.map((id) => ctx.db.get(id)));
+        const userMap = new Map(users.filter(Boolean).map((u) => [u!._id, u!]));
+
+        return all.map((trade) => ({
+            ...trade,
+            proposerName: userMap.get(trade.proposerId)?.name ?? "Unknown",
+            receiverName: userMap.get(trade.receiverId)?.name ?? "Unknown",
+        }));
     },
 });
 
@@ -191,7 +142,7 @@ export const getMyTrades = query({
 export const getTradeById = query({
     args: { tradeId: v.id("trades") },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
+        const user = await getCurrentUserOrNull(ctx);
         if (!user) return null;
 
         const trade = await ctx.db.get(args.tradeId);

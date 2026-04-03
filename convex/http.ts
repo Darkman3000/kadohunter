@@ -1,5 +1,12 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
+import { resolveImageUrl } from "./utils/imageResolver";
+
+const CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+} as const;
 
 const http = httpRouter();
 
@@ -87,41 +94,22 @@ If you cannot identify the card clearly, still make your best guess and set conf
       const geminiData = await geminiResponse.json();
       const text =
         geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-      const parsed = JSON.parse(text.trim());
 
-      // Resolve card image from external APIs
-      let imageUrl: string | undefined;
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text.trim());
+      } catch {
+        return new Response(
+          JSON.stringify({ error: "Failed to parse recognition result" }),
+          { status: 502, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
       const cardName = parsed.name ?? "Unknown Card";
       const cardGame = parsed.game ?? "unknown";
-      try {
-        if (cardGame === "pokemon") {
-          const imgResp = await fetch(
-            `https://api.pokemontcg.io/v2/cards?q=name:"${encodeURIComponent(cardName)}"&pageSize=1`
-          );
-          if (imgResp.ok) {
-            const imgData = await imgResp.json();
-            imageUrl = imgData.data?.[0]?.images?.small;
-          }
-        } else if (cardGame === "yugioh") {
-          const imgResp = await fetch(
-            `https://db.ygoprodeck.com/api/v7/cardinfo.php?name=${encodeURIComponent(cardName)}`
-          );
-          if (imgResp.ok) {
-            const imgData = await imgResp.json();
-            imageUrl = imgData.data?.[0]?.card_images?.[0]?.image_url_small;
-          }
-        } else if (cardGame === "mtg") {
-          const imgResp = await fetch(
-            `https://api.scryfall.com/cards/search?q=${encodeURIComponent(cardName)}&unique=cards&order=released`
-          );
-          if (imgResp.ok) {
-            const imgData = await imgResp.json();
-            imageUrl = imgData.data?.[0]?.image_uris?.small;
-          }
-        }
-      } catch {
-        // Image lookup failed — non-fatal, continue without image
-      }
+
+      // Resolve card image from external APIs (shared utility)
+      const imageUrl = await resolveImageUrl(cardGame, cardName);
 
       const result = {
         name: cardName,
@@ -137,10 +125,7 @@ If you cannot identify the card clearly, still make your best guess and set conf
 
       return new Response(JSON.stringify(result), {
         status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       });
     } catch (error: any) {
       console.error("Recognition error:", error);
@@ -158,11 +143,7 @@ http.route({
   handler: httpAction(async () => {
     return new Response(null, {
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
+      headers: CORS_HEADERS,
     });
   }),
 });

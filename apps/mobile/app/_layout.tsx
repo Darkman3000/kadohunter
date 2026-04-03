@@ -15,11 +15,10 @@ import { BookOpen, Scan, User, LogOut, BarChart3, ArrowLeftRight, Globe } from "
 import { api } from "../../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { KadoColors } from "@/constants/theme";
+import { BREAKPOINTS } from "@/constants/breakpoints";
 import "react-native-reanimated";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
-
-const DESKTOP_BREAKPOINT = 768;
 
 function Sidebar() {
   const pathname = usePathname();
@@ -155,7 +154,7 @@ export default function RootLayout() {
   const clerkKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
-  const isDesktop = isWeb && width >= DESKTOP_BREAKPOINT;
+  const isDesktop = isWeb && width >= BREAKPOINTS.DESKTOP;
 
   if (!clerkKey) {
     throw new Error(

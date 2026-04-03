@@ -1,45 +1,9 @@
-import { internalAction, internalMutation } from "./_generated/server";
+import { internalAction, internalQuery, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { resolveImageUrl } from "./utils/imageResolver";
 
 const BATCH_SIZE = 20;
-
-/** Resolve a card image URL from external APIs by game and name. */
-async function resolveImageUrl(
-    gameCode: string,
-    cardName: string
-): Promise<string | undefined> {
-    try {
-        if (gameCode === "pokemon") {
-            const resp = await fetch(
-                `https://api.pokemontcg.io/v2/cards?q=name:"${encodeURIComponent(cardName)}"&pageSize=1`
-            );
-            if (resp.ok) {
-                const data = await resp.json();
-                return data.data?.[0]?.images?.small;
-            }
-        } else if (gameCode === "yugioh") {
-            const resp = await fetch(
-                `https://db.ygoprodeck.com/api/v7/cardinfo.php?name=${encodeURIComponent(cardName)}`
-            );
-            if (resp.ok) {
-                const data = await resp.json();
-                return data.data?.[0]?.card_images?.[0]?.image_url_small;
-            }
-        } else if (gameCode === "mtg") {
-            const resp = await fetch(
-                `https://api.scryfall.com/cards/search?q=${encodeURIComponent(cardName)}&unique=cards&order=released`
-            );
-            if (resp.ok) {
-                const data = await resp.json();
-                return data.data?.[0]?.image_uris?.small;
-            }
-        }
-    } catch {
-        // Non-fatal
-    }
-    return undefined;
-}
 
 /** Patch a single scan with its resolved image URL. */
 export const patchImage = internalMutation({
@@ -78,7 +42,7 @@ export const backfillImages = internalAction({
 });
 
 /** Query to get scans that need image backfill. */
-export const getScansWithoutImages = internalMutation({
+export const getScansWithoutImages = internalQuery({
     args: {},
     handler: async (ctx) => {
         const allScans = await ctx.db.query("savedScans").collect();

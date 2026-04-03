@@ -3,8 +3,7 @@ import React from "react";
 import { Platform, View, useWindowDimensions } from "react-native";
 import { Scan, BookOpen, Globe, User, BarChart3, ArrowLeftRight } from "lucide-react-native";
 import { KadoColors } from "@/constants/theme";
-
-const DESKTOP_BREAKPOINT = 768;
+import { BREAKPOINTS } from "@/constants/breakpoints";
 
 const ScanIcon = Scan as React.ComponentType<any>;
 const BookOpenIcon = BookOpen as React.ComponentType<any>;
@@ -48,7 +47,7 @@ function RailIcon({
 export default function TabLayout() {
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
-  const isDesktop = isWeb && width >= DESKTOP_BREAKPOINT;
+  const isDesktop = isWeb && width >= BREAKPOINTS.DESKTOP;
 
   return (
     <Tabs

@@ -31,6 +31,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { Svg, Path, Defs, LinearGradient, Stop, Circle, Polyline, Text as SvgText } from "react-native-svg";
 import { KadoColors } from "@/constants/theme";
+import { BREAKPOINTS } from "@/constants/breakpoints";
 import type { Card, CardCondition, TCG } from "@kado/contracts";
 import { supportedGames } from "@kado/domain";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -146,7 +147,7 @@ export default function CardDetailScreen() {
     mode?: 'binder' | 'market' | 'staged';
   }>();
   const { width: windowWidth } = useWindowDimensions();
-  const isDesktop = windowWidth >= 768;
+  const isDesktop = windowWidth >= BREAKPOINTS.DESKTOP;
   
   const scanId = id as string;
   const viewMode = mode || (scanId === "market" ? "market" : "binder");

@@ -1,25 +1,12 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-
-/**
- * Wishlist module — tracks cards the user wants but doesn't own yet.
- * Each item can optionally have a targetPrice for price-drop alerts.
- */
-
-async function getAuthenticatedUser(ctx: any) {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    return await ctx.db
-        .query("users")
-        .withIndex("by_token", (q: any) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-        .first();
-}
+import { getCurrentUserOrNull, requireCurrentUser } from "./utils/auth";
 
 /** Get all wishlist items for the current user, enriched with latest market price. */
 export const getWishlist = query({
     args: {},
     handler: async (ctx) => {
-        const user = await getAuthenticatedUser(ctx);
+        const user = await getCurrentUserOrNull(ctx);
         if (!user) return [];
 
         const items = await ctx.db
@@ -27,7 +14,6 @@ export const getWishlist = query({
             .withIndex("by_user", (q: any) => q.eq("userId", user._id))
             .collect();
 
-        // Enrich with latest price from prices table
         const enriched = await Promise.all(
             items.map(async (item) => {
                 const latestPrice = await ctx.db
@@ -66,10 +52,8 @@ export const addToWishlist = mutation({
         targetPrice: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
-        if (!user) throw new Error("Unauthorized");
+        const user = await requireCurrentUser(ctx);
 
-        // Check if already on wishlist
         const existing = await ctx.db
             .query("wishlists")
             .withIndex("by_user_card", (q: any) =>
@@ -78,7 +62,6 @@ export const addToWishlist = mutation({
             .first();
 
         if (existing) {
-            // Update target price if provided
             if (args.targetPrice !== undefined) {
                 await ctx.db.patch(existing._id, { targetPrice: args.targetPrice });
             }
@@ -102,14 +85,11 @@ export const addToWishlist = mutation({
 export const removeFromWishlist = mutation({
     args: { wishlistId: v.id("wishlists") },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
-        if (!user) throw new Error("Unauthorized");
-
+        const user = await requireCurrentUser(ctx);
         const item = await ctx.db.get(args.wishlistId);
         if (!item || item.userId !== user._id) {
             throw new Error("Not found or unauthorized");
         }
-
         await ctx.db.delete(args.wishlistId);
     },
 });
@@ -124,8 +104,7 @@ export const toggleWishlistItem = mutation({
         imageUrl: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
-        if (!user) throw new Error("Unauthorized");
+        const user = await requireCurrentUser(ctx);
 
         const existing = await ctx.db
             .query("wishlists")
@@ -160,7 +139,7 @@ export const isOnWishlist = query({
         gameCode: v.string(),
     },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
+        const user = await getCurrentUserOrNull(ctx);
         if (!user) return false;
 
         const existing = await ctx.db
@@ -181,14 +160,11 @@ export const updateTargetPrice = mutation({
         targetPrice: v.number(),
     },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
-        if (!user) throw new Error("Unauthorized");
-
+        const user = await requireCurrentUser(ctx);
         const item = await ctx.db.get(args.wishlistId);
         if (!item || item.userId !== user._id) {
             throw new Error("Not found or unauthorized");
         }
-
         await ctx.db.patch(args.wishlistId, { targetPrice: args.targetPrice });
     },
 });

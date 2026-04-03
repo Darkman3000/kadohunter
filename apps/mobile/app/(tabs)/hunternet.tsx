@@ -13,9 +13,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import {
   BarChart3,
   TrendingUp,
@@ -146,8 +147,7 @@ function MarketTab({ dashboardCards, tickerData, lastUpdatedLabel, isFeedRefresh
 
 export default function HunterNetScreen() {
   const router = useRouter();
-  const { width: windowWidth } = useWindowDimensions();
-  const isDesktop = Platform.OS === "web" && windowWidth >= 768;
+  const { isDesktop } = useResponsiveLayout();
 
   const [activeTab, setActiveTab] = useState<HunterNetTab>("Pulse");
   const [isFeedRefreshing, setIsFeedRefreshing] = useState(false);

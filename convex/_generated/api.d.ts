@@ -19,6 +19,9 @@ import type * as sessions from "../sessions.js";
 import type * as testing from "../testing.js";
 import type * as trades from "../trades.js";
 import type * as users from "../users.js";
+import type * as utils_auth from "../utils/auth.js";
+import type * as utils_friendships from "../utils/friendships.js";
+import type * as utils_imageResolver from "../utils/imageResolver.js";
 import type * as wishlists from "../wishlists.js";
 
 import type {
@@ -39,6 +42,9 @@ declare const fullApi: ApiFromModules<{
   testing: typeof testing;
   trades: typeof trades;
   users: typeof users;
+  "utils/auth": typeof utils_auth;
+  "utils/friendships": typeof utils_friendships;
+  "utils/imageResolver": typeof utils_imageResolver;
   wishlists: typeof wishlists;
 }>;
 

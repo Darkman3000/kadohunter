@@ -1,19 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-
-/**
- * Flea Market Sessions module — groups staged scans into reviewable sessions.
- * Sessions can be shared with friends for collaborative judging.
- */
-
-async function getAuthenticatedUser(ctx: any) {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    return await ctx.db
-        .query("users")
-        .withIndex("by_token", (q: any) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-        .first();
-}
+import { getCurrentUserOrNull, requireCurrentUser } from "./utils/auth";
+import { areFriends } from "./utils/friendships";
 
 /** Start a new flea market scanning session. */
 export const startSession = mutation({
@@ -22,7 +10,7 @@ export const startSession = mutation({
         title: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
+        const user = await getCurrentUserOrNull(ctx);
 
         return await ctx.db.insert("fleaSessions", {
             userId: user?._id,
@@ -44,7 +32,6 @@ export const endSession = mutation({
         if (!session) throw new Error("Session not found");
         if (session.status === "completed") throw new Error("Session already completed");
 
-        // Aggregate scans for this session
         const scans = await ctx.db
             .query("stagedScans")
             .withIndex("by_session", (q: any) => q.eq("sessionId", args.sessionId))
@@ -67,14 +54,12 @@ export const endSession = mutation({
 export const getActiveSession = query({
     args: { deviceId: v.string() },
     handler: async (ctx, args) => {
-        const session = await ctx.db
+        return await ctx.db
             .query("fleaSessions")
             .withIndex("by_device", (q: any) => q.eq("deviceId", args.deviceId))
             .filter((q: any) => q.eq(q.field("status"), "active"))
             .order("desc")
             .first();
-
-        return session;
     },
 });
 
@@ -82,17 +67,15 @@ export const getActiveSession = query({
 export const getSessionHistory = query({
     args: {},
     handler: async (ctx) => {
-        const user = await getAuthenticatedUser(ctx);
+        const user = await getCurrentUserOrNull(ctx);
         if (!user) return [];
 
-        const sessions = await ctx.db
+        return await ctx.db
             .query("fleaSessions")
             .withIndex("by_user", (q: any) => q.eq("userId", user._id))
             .filter((q: any) => q.eq(q.field("status"), "completed"))
             .order("desc")
             .collect();
-
-        return sessions;
     },
 });
 
@@ -100,11 +83,10 @@ export const getSessionHistory = query({
 export const getSessionCards = query({
     args: { sessionId: v.id("fleaSessions") },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
+        const user = await getCurrentUserOrNull(ctx);
         const session = await ctx.db.get(args.sessionId);
         if (!session) return [];
 
-        // Verify access: owner or shared-with friend
         const isOwner = user && session.userId === user._id;
         const isShared = user && session.sharedWith?.includes(user._id);
         if (!isOwner && !isShared) return [];
@@ -123,8 +105,7 @@ export const shareSession = mutation({
         friendIds: v.array(v.id("users")),
     },
     handler: async (ctx, args) => {
-        const user = await getAuthenticatedUser(ctx);
-        if (!user) throw new Error("Unauthorized");
+        const user = await requireCurrentUser(ctx);
 
         const session = await ctx.db.get(args.sessionId);
         if (!session || session.userId !== user._id) {
@@ -133,24 +114,7 @@ export const shareSession = mutation({
 
         // Verify all friendIds are accepted friends
         for (const friendId of args.friendIds) {
-            const friendship = await ctx.db
-                .query("friendships")
-                .withIndex("by_pair", (q: any) =>
-                    q.eq("requesterId", user._id).eq("addresseeId", friendId)
-                )
-                .first();
-            const friendshipRev = await ctx.db
-                .query("friendships")
-                .withIndex("by_pair", (q: any) =>
-                    q.eq("requesterId", friendId).eq("addresseeId", user._id)
-                )
-                .first();
-
-            const isFriend =
-                (friendship?.status === "accepted") ||
-                (friendshipRev?.status === "accepted");
-
-            if (!isFriend) {
+            if (!(await areFriends(ctx, user._id, friendId))) {
                 throw new Error(`User ${friendId} is not an accepted friend`);
             }
         }
@@ -165,11 +129,11 @@ export const shareSession = mutation({
 export const getSharedSessions = query({
     args: {},
     handler: async (ctx) => {
-        const user = await getAuthenticatedUser(ctx);
+        const user = await getCurrentUserOrNull(ctx);
         if (!user) return [];
 
-        // Must scan all completed sessions and filter by sharedWith
-        // (Convex doesn't support array-contains index queries)
+        // Convex doesn't support array-contains index queries,
+        // so we scan completed sessions and filter by sharedWith
         const allSessions = await ctx.db
             .query("fleaSessions")
             .filter((q: any) => q.eq(q.field("status"), "completed"))
@@ -179,18 +143,15 @@ export const getSharedSessions = query({
             (s) => s.sharedWith?.includes(user._id)
         );
 
-        // Enrich with owner name
-        const enriched = await Promise.all(
-            sharedWithMe.map(async (session) => {
-                const owner = session.userId ? await ctx.db.get(session.userId) : null;
-                return {
-                    ...session,
-                    ownerName: owner?.name ?? "Kado Hunter",
-                    ownerTag: owner?.hunterTag ?? "KDO-0000",
-                };
-            })
-        );
+        // Batch-collect unique owner IDs
+        const ownerIds = [...new Set(sharedWithMe.map((s) => s.userId).filter(Boolean))];
+        const owners = await Promise.all(ownerIds.map((id) => ctx.db.get(id!)));
+        const ownerMap = new Map(owners.filter(Boolean).map((u) => [u!._id, u!]));
 
-        return enriched;
+        return sharedWithMe.map((session) => ({
+            ...session,
+            ownerName: (session.userId && ownerMap.get(session.userId)?.name) ?? "Kado Hunter",
+            ownerTag: (session.userId && ownerMap.get(session.userId)?.hunterTag) ?? "KDO-0000",
+        }));
     },
 });

@@ -36,6 +36,9 @@ import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import type { Card } from "@kado/contracts";
 import { KadoColors } from "@/constants/theme";
+import { BREAKPOINTS } from "@/constants/breakpoints";
+import { getGameLabel } from "@/utils/gameLabels";
+import { getGameTone, getRarityBorderColor } from "@/utils/gameStyles";
 import { api } from "../../../../convex/_generated/api";
 
 const ArrowUpDownIcon = ArrowUpDown as React.ComponentType<any>;
@@ -58,7 +61,7 @@ const CARD_GAP = 12;
 function useGridLayout() {
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
-  const isDesktop = isWeb && width >= 768; // Matching _layout.tsx breakpoint
+  const isDesktop = isWeb && width >= BREAKPOINTS.DESKTOP;
   
   // If web and not desktop, we are in the 480px centered box
   const availableWidth = isDesktop ? width - 80 : isWeb ? Math.min(width, 480) : width;
@@ -100,35 +103,7 @@ function mapScanToCard(scan: any): Card {
   };
 }
 
-function getGameLabel(game?: Card["game"]) {
-  switch (game) {
-    case "pokemon": return "Pokemon";
-    case "mtg": return "Magic";
-    case "yugioh": return "Yu-Gi-Oh!";
-    case "onepiece": return "One Piece";
-    case "dragonball": return "Dragon Ball";
-    default: return "TCG";
-  }
-}
-
-function getGameTone(game?: Card["game"]) {
-  switch (game) {
-    case "pokemon": return { border: "rgba(245, 158, 11, 0.35)", background: "rgba(245, 158, 11, 0.16)", text: "#fbbf24" };
-    case "mtg": return { border: "rgba(249, 115, 22, 0.35)", background: "rgba(249, 115, 22, 0.16)", text: "#fb923c" };
-    case "yugioh": return { border: "rgba(168, 85, 247, 0.35)", background: "rgba(168, 85, 247, 0.16)", text: "#c084fc" };
-    case "onepiece": return { border: "rgba(56, 189, 248, 0.35)", background: "rgba(56, 189, 248, 0.16)", text: "#67e8f9" };
-    case "dragonball": return { border: "rgba(244, 114, 182, 0.35)", background: "rgba(244, 114, 182, 0.16)", text: "#f9a8d4" };
-    default: return { border: "rgba(255, 255, 255, 0.12)", background: "rgba(255, 255, 255, 0.08)", text: KadoColors.lightSlate };
-  }
-}
-
-function getRarityBorderColor(rarity: string) {
-  const value = rarity.toLowerCase();
-  if (value.includes("secret") || value.includes("illustration") || value.includes("hyper")) return "rgba(245, 158, 11, 0.82)";
-  if (value.includes("ultra")) return "rgba(168, 85, 247, 0.82)";
-  if (value.includes("rare") || value.includes("holo")) return "rgba(96, 165, 250, 0.82)";
-  return "rgba(255, 255, 255, 0.12)";
-}
+// getGameLabel, getGameTone, getRarityBorderColor imported from @/utils
 
 function getConditionStyle(condition?: string) {
   switch ((condition ?? "NM").toUpperCase()) {

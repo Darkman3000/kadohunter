@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useQuery, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import {
   BarChart3,
   TrendingUp,
@@ -32,8 +33,7 @@ type MarketSubTab = (typeof MARKET_SUB_TABS)[number];
 
 export default function MarketScreen() {
   const router = useRouter();
-  const { width: windowWidth } = useWindowDimensions();
-  const isDesktop = Platform.OS === "web" && windowWidth >= 768;
+  const { isDesktop } = useResponsiveLayout();
 
   const [marketSubTab, setMarketSubTab] = useState<MarketSubTab>("Dashboard");
   const [isFeedRefreshing, setIsFeedRefreshing] = useState(false);
