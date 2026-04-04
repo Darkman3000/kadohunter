@@ -11,12 +11,14 @@ const config = getDefaultConfig(projectRoot);
 config.projectRoot = projectRoot;
 
 // Monorepo: keep Expo defaults and add the workspace root.
-config.watchFolders = [...new Set([...(config.watchFolders ?? []), monorepoRoot])];
+config.watchFolders = [monorepoRoot];
 
 // Monorepo: resolve packages from both local and root node_modules
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, "node_modules"),
   path.resolve(monorepoRoot, "node_modules"),
 ];
+
+config.resolver.disableHierarchicalLookup = true;
 
 module.exports = withNativeWind(config, { input: "./global.css" });

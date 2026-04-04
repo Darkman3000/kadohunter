@@ -115,12 +115,12 @@ export const getMyTrades = query({
 
         const proposed = await ctx.db
             .query("trades")
-            .withIndex("by_proposer", (q: any) => q.eq("proposerId", user._id))
+            .withIndex("by_proposer", (q) => q.eq("proposerId", user._id))
             .collect();
 
         const received = await ctx.db
             .query("trades")
-            .withIndex("by_receiver", (q: any) => q.eq("receiverId", user._id))
+            .withIndex("by_receiver", (q) => q.eq("receiverId", user._id))
             .collect();
 
         const all = [...proposed, ...received].sort((a, b) => b.createdAt - a.createdAt);

@@ -31,7 +31,8 @@ export default defineSchema({
         email: v.optional(v.string()),
         name: v.optional(v.string()),
         hunterTag: v.optional(v.string()), // e.g. "KDO-7842"
-        tier: v.union(v.literal("free"), v.literal("pro_monthly"), v.literal("pro_annual")),
+        tier: v.union(v.literal("free"), v.literal("pro")),
+        billingCycle: v.optional(v.union(v.literal("monthly"), v.literal("annual"))),
         scansToday: v.number(),
         lastScanDate: v.string(),
         stripeCustomerId: v.optional(v.string()),
@@ -113,7 +114,8 @@ export default defineSchema({
         currency: v.string(),
         updatedAt: v.number(),
     }).index("by_card", ["cardId", "gameCode"])
-      .index("by_game", ["gameCode"]),
+      .index("by_game", ["gameCode"])
+      .index("by_market_price", ["marketPrice"]),
 
     marketFeedConfig: defineTable({
         lastRefreshedAt: v.number(),

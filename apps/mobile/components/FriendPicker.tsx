@@ -12,11 +12,20 @@ import { X, User, ChevronRight } from "lucide-react-native";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
+import type { Id } from "../../../convex/_generated/dataModel";
+import type { SubscriptionTier } from "@kado/contracts";
+
+export interface PickableFriend {
+  _id: Id<"users">;
+  name?: string;
+  hunterTag?: string;
+  tier: SubscriptionTier;
+}
 
 interface FriendPickerProps {
   isVisible: boolean;
   onClose: () => void;
-  onSelect: (friend: any) => void;
+  onSelect: (friend: PickableFriend) => void;
 }
 
 export function FriendPicker({ isVisible, onClose, onSelect }: FriendPickerProps) {
@@ -62,7 +71,7 @@ export function FriendPicker({ isVisible, onClose, onSelect }: FriendPickerProps
             </View>
           ) : (
             <ScrollView showsVerticalScrollIndicator={false}>
-              {friends.map((friend: any) => (
+              {friends.map((friend) => (
                 <Pressable
                   key={friend._id}
                   onPress={() => onSelect(friend)}

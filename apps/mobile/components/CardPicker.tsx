@@ -10,13 +10,25 @@ import {
 import { Image } from "expo-image";
 import { X, LayoutGrid, ChevronRight } from "lucide-react-native";
 import { KadoColors } from "@/constants/theme";
+import type { Id } from "../../../convex/_generated/dataModel";
+
+export interface PickableCard {
+  _id: Id<"savedScans">;
+  cardId: string;
+  cardName: string;
+  setName?: string;
+  gameCode: string;
+  imageUrl?: string;
+  marketPrice?: number;
+  estimatedPrice?: number;
+}
 
 interface CardPickerProps {
   isVisible: boolean;
   onClose: () => void;
-  onSelect: (card: any) => void;
+  onSelect: (card: PickableCard) => void;
   title: string;
-  cards: any[] | undefined;
+  cards: PickableCard[] | undefined;
 }
 
 export function CardPicker({ isVisible, onClose, onSelect, title, cards }: CardPickerProps) {
@@ -61,7 +73,7 @@ export function CardPicker({ isVisible, onClose, onSelect, title, cards }: CardP
           ) : (
             <ScrollView showsVerticalScrollIndicator={false}>
               <View className="flex-row flex-wrap justify-between">
-                {cards.map((card: any) => (
+                {cards.map((card) => (
                   <Pressable
                     key={card._id}
                     onPress={() => onSelect(card)}

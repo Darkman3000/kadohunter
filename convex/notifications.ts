@@ -11,7 +11,7 @@ export const checkPriceDrops = internalAction({
         for (const user of usersWithWishlists) {
             if (!user.pushToken) continue;
 
-            const drops = user.wishlistItems.filter((item: any) => 
+            const drops = user.wishlistItems.filter((item) =>
                 item.targetPrice && 
                 item.currentPrice && 
                 item.currentPrice <= item.targetPrice
@@ -32,7 +32,7 @@ export const checkPriceDrops = internalAction({
 });
 
 /** Helper to send a push notification via Expo API. */
-async function sendPushNotification(expoPushToken: string, title: string, body: string, data: any) {
+async function sendPushNotification(expoPushToken: string, title: string, body: string, data: Record<string, string>) {
     const message = {
         to: expoPushToken,
         sound: 'default',
@@ -56,43 +56,59 @@ async function sendPushNotification(expoPushToken: string, title: string, body: 
 export const getUsersWithTargetPrices = internalQuery({
     args: {},
     handler: async (ctx) => {
-        const users = await ctx.db.query("users").collect();
-        const results = [];
+        // 1. Fetch all wishlists that have a target price set
+        const allWishlists = await ctx.db.query("wishlists").collect();
+        const withTargets = allWishlists.filter(item => item.targetPrice !== undefined);
 
-        for (const user of users) {
-            const wishlistItems = await ctx.db
-                .query("wishlists")
-                .withIndex("by_user", (q) => q.eq("userId", user._id))
-                .collect();
+        if (withTargets.length === 0) return [];
 
-            const itemsWithTargets = await Promise.all(
-                wishlistItems
-                    .filter(item => item.targetPrice !== undefined)
-                    .map(async (item) => {
-                        const latestPrice = await ctx.db
-                            .query("prices")
-                            .withIndex("by_card", (q) =>
-                                q.eq("cardId", item.cardId).eq("gameCode", item.gameCode)
-                            )
-                            .order("desc")
-                            .first();
-
-                        return {
-                            cardName: item.cardName,
-                            targetPrice: item.targetPrice,
-                            currentPrice: latestPrice?.marketPrice,
-                        };
-                    })
-            );
-
-            if (itemsWithTargets.length > 0) {
-                results.push({
-                    pushToken: user.pushToken,
-                    wishlistItems: itemsWithTargets,
-                });
-            }
+        // 2. Batch-fetch prices for all targeted cards
+        const priceKeys = [...new Set(withTargets.map(w => `${w.cardId}:${w.gameCode}`))];
+        const priceMap = new Map<string, number>();
+        for (const key of priceKeys) {
+            const [cardId, gameCode] = key.split(":");
+            const price = await ctx.db
+                .query("prices")
+                .withIndex("by_card", (q) =>
+                    q.eq("cardId", cardId).eq("gameCode", gameCode)
+                )
+                .first();
+            if (price) priceMap.set(key, price.marketPrice);
         }
 
-        return results;
+        // 3. Group by userId and fetch user push tokens
+        const userIds = [...new Set(withTargets.map(w => w.userId))];
+        const userMap = new Map(
+            (await Promise.all(userIds.map(id => ctx.db.get(id))))
+                .filter(Boolean)
+                .map(u => [u!._id, u!])
+        );
+
+        // 4. Build results grouped by user
+        const resultsByUser = new Map<string, {
+            pushToken: string | undefined;
+            wishlistItems: { cardName: string; targetPrice: number | undefined; currentPrice: number | undefined }[];
+        }>();
+
+        for (const item of withTargets) {
+            const user = userMap.get(item.userId);
+            if (!user) continue;
+
+            if (!resultsByUser.has(item.userId)) {
+                resultsByUser.set(item.userId, {
+                    pushToken: user.pushToken,
+                    wishlistItems: [],
+                });
+            }
+
+            const currentPrice = priceMap.get(`${item.cardId}:${item.gameCode}`);
+            resultsByUser.get(item.userId)!.wishlistItems.push({
+                cardName: item.cardName,
+                targetPrice: item.targetPrice,
+                currentPrice,
+            });
+        }
+
+        return [...resultsByUser.values()].filter(r => r.wishlistItems.length > 0);
     },
 });

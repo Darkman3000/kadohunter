@@ -10,37 +10,29 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@clerk/clerk-expo";
 import {
-  AlertTriangle,
-  Camera,
-  Check,
   FolderOpen,
   RotateCw,
   Scan,
-  Sparkles,
-  TrendingUp,
   Upload,
   WifiOff,
-  X,
+  AlertTriangle,
+  Sparkles,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
-import Animated, {
+import {
   cancelAnimation,
   Easing,
-  FadeInDown,
-  FadeOutDown,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
-import { Defs, LinearGradient, Rect, Stop, Svg } from "react-native-svg";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
@@ -48,26 +40,21 @@ import {
   recognitionService,
   type RecognitionResult,
 } from "@/services/recognition";
-import { getGameLabel } from "@/utils/gameLabels";
+import { ScanResultCard, ScannerFrame, ScanModeSelector, type ScanMode } from "../../components/scanner";
+import { scanLimits } from "@kado/domain";
 
-const FREE_SCAN_LIMIT = 5;
+const FREE_SCAN_LIMIT = scanLimits.free;
 const LOW_CONFIDENCE_THRESHOLD = 0.65;
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const FRAME_WIDTH = Math.min(SCREEN_WIDTH * 0.72, 300);
 const FRAME_HEIGHT = FRAME_WIDTH * 1.25;
 
-const TrendingUpIconLocal = TrendingUp;
-
-const CameraIcon = Camera as React.ComponentType<any>;
 const ScanIcon = Scan as React.ComponentType<any>;
 const UploadIcon = Upload as React.ComponentType<any>;
 const AlertTriangleIcon = AlertTriangle as React.ComponentType<any>;
 const WifiOffIcon = WifiOff as React.ComponentType<any>;
 const SparklesIcon = Sparkles as React.ComponentType<any>;
-const TrendingUpIcon = TrendingUpIconLocal as React.ComponentType<any>;
-const CheckIcon = Check as React.ComponentType<any>;
-const CloseIcon = X as React.ComponentType<any>;
 const HistoryIcon = FolderOpen as React.ComponentType<any>;
 const FlipIcon = RotateCw as React.ComponentType<any>;
 
@@ -95,8 +82,6 @@ const buildCardId = (result: RecognitionResult) => {
 
   return slug || `scan-${Date.now().toString(36)}`;
 };
-
-// getGameLabel imported from @/utils/gameLabels
 
 const getRecognitionErrorMessage = (error: unknown) => {
   const message =
@@ -134,8 +119,6 @@ const getPermissionErrorMessage = (error: unknown) => {
 
   return "Could not open the photo library. Try again.";
 };
-
-type ScanMode = "Binder" | "Flea" | "Quick";
 
 export default function ScannerScreen() {
   const router = useRouter();
@@ -176,9 +159,7 @@ export default function ScannerScreen() {
   const canSaveToBinder = Boolean(isSignedIn && currentUser?._id) && !isSaving;
 
   useEffect(() => {
-    if (!feedback) {
-      return;
-    }
+    if (!feedback) return;
 
     const timeout = setTimeout(() => {
       setFeedback(null);
@@ -240,9 +221,7 @@ export default function ScannerScreen() {
 
   const runRecognition = useCallback(
     async (base64: string, source: ScanSource) => {
-      if (isScanning || isSaving) {
-        return;
-      }
+      if (isScanning || isSaving) return;
 
       setScanSource(source);
       setScanResult(null);
@@ -283,9 +262,7 @@ export default function ScannerScreen() {
   );
 
   const handleCapture = useCallback(async () => {
-    if (!cameraRef.current || isScanning || isSaving) {
-      return;
-    }
+    if (!cameraRef.current || isScanning || isSaving) return;
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
@@ -308,9 +285,7 @@ export default function ScannerScreen() {
   }, [isSaving, isScanning, runRecognition, showFeedback]);
 
   const handleUpload = useCallback(async () => {
-    if (isScanning || isSaving) {
-      return;
-    }
+    if (isScanning || isSaving) return;
 
     try {
       const libraryPermission =
@@ -341,9 +316,7 @@ export default function ScannerScreen() {
         allowsEditing: false,
       });
 
-      if (result.canceled) {
-        return;
-      }
+      if (result.canceled) return;
 
       const base64 = result.assets?.[0]?.base64;
       if (!base64) {
@@ -372,9 +345,7 @@ export default function ScannerScreen() {
   }, []);
 
   const handleSaveResult = useCallback(async () => {
-    if (!scanResult || isSaving) {
-      return;
-    }
+    if (!scanResult || isSaving) return;
 
     if (isAuthLoaded && !isSignedIn) {
       showFeedback("info", "Sign in to save cards to your binder.");
@@ -432,7 +403,6 @@ export default function ScannerScreen() {
         showFeedback("success", "Card added to Flea Session.");
         router.push(`/card/${stagedId}?mode=staged`);
       } else {
-        // Quick mode - just view
         router.push(`/card/market?cardId=${encodeURIComponent(cardId)}&gameCode=${scanResult.game}&mode=market`);
       }
 
@@ -602,78 +572,17 @@ export default function ScannerScreen() {
               </View>
             )}
 
-            <View className="items-center justify-center flex-1">
-              <View
-                style={{ width: FRAME_WIDTH, height: FRAME_HEIGHT }}
-                className="border border-white/20 rounded-3xl relative overflow-hidden bg-black/15"
-              >
-                <View className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-umber rounded-tl-3xl" />
-                <View className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-umber rounded-tr-3xl" />
-                <View className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-umber rounded-bl-3xl" />
-                <View className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-umber rounded-br-3xl" />
+            <ScannerFrame
+              width={FRAME_WIDTH}
+              height={FRAME_HEIGHT}
+              isScanning={isScanning}
+              scanLineAnimatedStyle={scanLineAnimatedStyle}
+            />
 
-                {isScanning && (
-                  <Animated.View
-                    className="absolute left-4 right-4"
-                    style={scanLineAnimatedStyle}
-                  >
-                    <View
-                      style={{
-                        shadowColor: KadoColors.umber,
-                        shadowOffset: { width: 0, height: 0 },
-                        shadowOpacity: 0.9,
-                        shadowRadius: 18,
-                        elevation: 10,
-                      }}
-                    >
-                      <Svg width="100%" height={6}>
-                        <Defs>
-                          <LinearGradient
-                            id="scan-line-gradient"
-                            x1="0%"
-                            y1="50%"
-                            x2="100%"
-                            y2="50%"
-                          >
-                            <Stop offset="0%" stopColor="rgba(199,167,123,0)" />
-                            <Stop offset="50%" stopColor="rgba(199,167,123,0.95)" />
-                            <Stop offset="100%" stopColor="rgba(199,167,123,0)" />
-                          </LinearGradient>
-                        </Defs>
-                        <Rect
-                          x="0"
-                          y="1.5"
-                          width="100%"
-                          height="3"
-                          rx="1.5"
-                          fill="url(#scan-line-gradient)"
-                        />
-                      </Svg>
-                    </View>
-                  </Animated.View>
-                )}
-              </View>
-            </View>
-
-            {/* ── Mode Selector ── */}
-            <View className="items-center pb-8">
-              <View className="flex-row bg-black/60 rounded-full p-1 border border-white/10">
-                {(["Binder", "Flea", "Quick"] as const).map((mode) => (
-                  <Pressable
-                    key={mode}
-                    onPress={() => {
-                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setScanMode(mode);
-                    }}
-                    className={`px-6 py-2 rounded-full ${scanMode === mode ? 'bg-amber-500' : ''}`}
-                  >
-                    <Text className={`text-[10px] font-black uppercase tracking-widest ${scanMode === mode ? 'text-midnight' : 'text-white/60'}`}>
-                      {mode}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
+            <ScanModeSelector
+              scanMode={scanMode}
+              onModeChange={setScanMode}
+            />
 
             <View className="flex-row items-center justify-between px-10 pb-12">
               <Pressable
@@ -691,8 +600,7 @@ export default function ScannerScreen() {
                 disabled={isScanning || isSaving}
                 className="w-20 h-20 rounded-full border-[6px] border-white/20 bg-black/15 items-center justify-center active:scale-95"
               >
-                <View
-                  >
+                <View>
                   {(isScanning || isSaving) && (
                     <ActivityIndicator size="small" color={KadoColors.umber} />
                   )}
@@ -709,164 +617,16 @@ export default function ScannerScreen() {
         </CameraView>
 
         {scanResult && (
-          <Animated.View
-            entering={FadeInDown.duration(220)}
-            exiting={FadeOutDown.duration(180)}
-            className="absolute inset-x-0 bottom-6 px-4"
-          >
-            <View
-              className="rounded-3xl border border-white/10 overflow-hidden"
-              style={{
-                backgroundColor: "rgba(15, 27, 49, 0.9)",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 16 },
-                shadowOpacity: 0.3,
-                shadowRadius: 28,
-                elevation: 16,
-              }}
-            >
-              <Pressable
-                onPress={handleDismissResult}
-                disabled={isSaving}
-                className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/35 border border-white/10 items-center justify-center active:scale-95"
-              >
-                <CloseIcon size={16} style={{ color: KadoColors.lightSlate }} />
-              </Pressable>
-
-              <View className="p-5">
-                <View className="flex-row gap-4">
-                  {scanResult.imageUrl ? (
-                    <Image
-                      source={{ uri: scanResult.imageUrl }}
-                      style={{ width: 84, height: 116, borderRadius: 12 }}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View className="w-[84px] h-[116px] rounded-xl bg-midnight/50 items-center justify-center">
-                      <CameraIcon
-                        size={24}
-                        style={{ color: KadoColors.slateText }}
-                        strokeWidth={1.5}
-                      />
-                    </View>
-                  )}
-
-                  <View className="flex-1 justify-center">
-                    <View className="flex-row flex-wrap gap-2 mb-2">
-                      <View className="px-2.5 py-1 rounded-full bg-umber/15 border border-umber/20">
-                        <Text className="text-umber text-[10px] font-bold tracking-widest uppercase">
-                          {getGameLabel(scanResult.game)}
-                        </Text>
-                      </View>
-                      <View className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">
-                        <Text className="text-light-slate text-[10px] font-bold tracking-widest uppercase">
-                          {scanResult.rarity}
-                        </Text>
-                      </View>
-                      <View className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">
-                        <Text className="text-slate-text text-[10px] font-bold tracking-widest uppercase">
-                          {scanResult.providerUsed}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text
-                      className="text-light-slate text-lg font-bold mb-1"
-                      numberOfLines={2}
-                    >
-                      {scanResult.name}
-                    </Text>
-                    <Text className="text-slate-text text-xs mb-2">
-                      {scanResult.set} {"\u00B7"} {scanResult.number}
-                    </Text>
-
-                    <View className="flex-row items-center gap-2">
-                      <Text className="text-light-slate text-2xl font-bold">
-                        ${scanResult.estimatedPriceUsd.toFixed(2)}
-                      </Text>
-                      <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10">
-                        <TrendingUpIcon size={12} style={{ color: "#10b981" }} />
-                        <Text className="text-[10px] font-bold text-emerald-400">
-                          Market
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                <View className="mt-4 mb-3">
-                  <View className="flex-row items-center justify-between mb-2">
-                    <Text className="text-slate-text text-[10px] font-bold tracking-[0.24em] uppercase">
-                      Confidence
-                    </Text>
-                    <Text
-                      className={`text-[10px] font-bold uppercase tracking-[0.24em] ${
-                        scanResult.confidence < LOW_CONFIDENCE_THRESHOLD
-                          ? "text-amber-400"
-                          : "text-light-slate"
-                      }`}
-                    >
-                      {(scanResult.confidence * 100).toFixed(0)}% match
-                    </Text>
-                  </View>
-
-                  <View className="h-2 rounded-full bg-midnight/60 overflow-hidden flex-row">
-                    <View
-                      className="h-full rounded-full bg-umber"
-                      style={{ width: `${Math.max(8, scanResult.confidence * 100)}%` }}
-                    />
-                  </View>
-
-                  {scanResult.confidence < LOW_CONFIDENCE_THRESHOLD && (
-                    <View className="flex-row items-center gap-2 mt-3 rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2">
-                      <AlertTriangleIcon size={14} style={{ color: "#fbbf24" }} />
-                      <Text className="flex-1 text-amber-100 text-xs">
-                        Low confidence. Verify the card details before saving.
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <View className="flex-row gap-3">
-                  <Pressable
-                    onPress={handleDismissResult}
-                    disabled={isSaving}
-                    className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 items-center active:scale-95"
-                  >
-                    <Text className="text-light-slate font-bold text-sm">
-                      Dismiss
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleSaveResult}
-                    disabled={!canSaveToBinder}
-                    className="flex-1 py-3 rounded-xl bg-umber items-center flex-row justify-center gap-2 active:scale-95"
-                    style={!canSaveToBinder ? { opacity: 0.6 } : undefined}
-                  >
-                    {isSaving ? (
-                      <ActivityIndicator size="small" color={KadoColors.midnight} />
-                    ) : !currentUser?._id ? (
-                      <SparklesIcon
-                        size={16}
-                        style={{ color: KadoColors.midnight }}
-                      />
-                    ) : (
-                      <CheckIcon size={16} style={{ color: KadoColors.midnight }} />
-                    )}
-                    <Text className="text-midnight font-bold text-sm">
-                      {isSaving
-                        ? "Saving..."
-                        : isAuthLoaded && !isSignedIn
-                          ? "Sign In to Save"
-                        : !currentUser?._id
-                          ? "Syncing Account..."
-                          : "Add to Binder"}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </Animated.View>
+          <ScanResultCard
+            scanResult={scanResult}
+            isSaving={isSaving}
+            canSaveToBinder={canSaveToBinder}
+            isSignedIn={isSignedIn ?? false}
+            isAuthLoaded={isAuthLoaded}
+            hasUser={Boolean(currentUser?._id)}
+            onDismiss={handleDismissResult}
+            onSave={handleSaveResult}
+          />
         )}
       </View>
     </SafeAreaView>

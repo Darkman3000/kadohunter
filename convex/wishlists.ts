@@ -11,14 +11,14 @@ export const getWishlist = query({
 
         const items = await ctx.db
             .query("wishlists")
-            .withIndex("by_user", (q: any) => q.eq("userId", user._id))
+            .withIndex("by_user", (q) => q.eq("userId", user._id))
             .collect();
 
         const enriched = await Promise.all(
             items.map(async (item) => {
                 const latestPrice = await ctx.db
                     .query("prices")
-                    .withIndex("by_card", (q: any) =>
+                    .withIndex("by_card", (q) =>
                         q.eq("cardId", item.cardId).eq("gameCode", item.gameCode)
                     )
                     .order("desc")
@@ -56,7 +56,7 @@ export const addToWishlist = mutation({
 
         const existing = await ctx.db
             .query("wishlists")
-            .withIndex("by_user_card", (q: any) =>
+            .withIndex("by_user_card", (q) =>
                 q.eq("userId", user._id).eq("cardId", args.cardId).eq("gameCode", args.gameCode)
             )
             .first();
@@ -108,7 +108,7 @@ export const toggleWishlistItem = mutation({
 
         const existing = await ctx.db
             .query("wishlists")
-            .withIndex("by_user_card", (q: any) =>
+            .withIndex("by_user_card", (q) =>
                 q.eq("userId", user._id).eq("cardId", args.cardId).eq("gameCode", args.gameCode)
             )
             .first();
@@ -144,7 +144,7 @@ export const isOnWishlist = query({
 
         const existing = await ctx.db
             .query("wishlists")
-            .withIndex("by_user_card", (q: any) =>
+            .withIndex("by_user_card", (q) =>
                 q.eq("userId", user._id).eq("cardId", args.cardId).eq("gameCode", args.gameCode)
             )
             .first();

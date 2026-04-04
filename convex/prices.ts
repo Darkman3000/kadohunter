@@ -59,15 +59,12 @@ export const getMarketDashboard = query({
     handler: async (ctx, args) => {
         const limit = args.limit ?? 20;
 
-        // Fetch all prices and sort client-side by marketPrice desc
-        // (Convex doesn't support orderBy on non-indexed fields across full table scans,
-        //  so we collect and sort in-handler — fine for <1000 rows)
-        const allPrices = await ctx.db.query("prices").collect();
-
-        const sorted = allPrices
-            .filter((p) => p.marketPrice > 0)
-            .sort((a, b) => b.marketPrice - a.marketPrice)
-            .slice(0, limit);
+        // Use by_market_price index for efficient top-N retrieval
+        const sorted = await ctx.db
+            .query("prices")
+            .withIndex("by_market_price")
+            .order("desc")
+            .take(limit);
 
         // For each card, calculate % change from earliest historical entry
         const results = await Promise.all(
@@ -114,12 +111,12 @@ export const getMarketDashboard = query({
 export const getMarketTicker = query({
     args: {},
     handler: async (ctx) => {
-        const allPrices = await ctx.db.query("prices").collect();
-
-        const withPrices = allPrices
-            .filter((p) => p.marketPrice > 0)
-            .sort((a, b) => b.marketPrice - a.marketPrice)
-            .slice(0, 10);
+        // Use by_market_price index for efficient top-N retrieval
+        const withPrices = await ctx.db
+            .query("prices")
+            .withIndex("by_market_price")
+            .order("desc")
+            .take(10);
 
         const ticker = await Promise.all(
             withPrices.map(async (price) => {

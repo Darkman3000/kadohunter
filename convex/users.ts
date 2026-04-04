@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+
+const FREE_SCAN_LIMIT = 5; // Mirrors @kado/domain scanLimits.free
 import {
     getUserByTokenIdentifier,
     getAuthenticatedUser,
@@ -89,8 +91,7 @@ export const logScanAttempt = mutation({
             return true;
         }
 
-        // Scan limit from @kado/domain: scanLimits.free = 5
-        if (user.tier === "free" && user.scansToday >= 5) {
+        if (user.tier === "free" && user.scansToday >= FREE_SCAN_LIMIT) {
             return false;
         }
 

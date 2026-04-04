@@ -11,14 +11,14 @@ export const getFriends = query({
 
         const friendships = await ctx.db
             .query("friendships")
-            .withIndex("by_requester", (q: any) => q.eq("requesterId", user._id))
-            .filter((q: any) => q.eq(q.field("status"), "accepted"))
+            .withIndex("by_requester", (q) => q.eq("requesterId", user._id))
+            .filter((q) => q.eq(q.field("status"), "accepted"))
             .collect();
 
         const friendshipsRev = await ctx.db
             .query("friendships")
-            .withIndex("by_addressee", (q: any) => q.eq("addresseeId", user._id))
-            .filter((q: any) => q.eq(q.field("status"), "accepted"))
+            .withIndex("by_addressee", (q) => q.eq("addresseeId", user._id))
+            .filter((q) => q.eq(q.field("status"), "accepted"))
             .collect();
 
         const allFriendships = [...friendships, ...friendshipsRev];
@@ -49,8 +49,8 @@ export const getPendingRequests = query({
 
         const incoming = await ctx.db
             .query("friendships")
-            .withIndex("by_addressee", (q: any) => q.eq("addresseeId", user._id))
-            .filter((q: any) => q.eq(q.field("status"), "pending"))
+            .withIndex("by_addressee", (q) => q.eq("addresseeId", user._id))
+            .filter((q) => q.eq(q.field("status"), "pending"))
             .collect();
 
         return await Promise.all(
@@ -75,7 +75,7 @@ export const sendFriendRequest = mutation({
 
         const targetUser = await ctx.db
             .query("users")
-            .withIndex("by_tag", (q: any) => q.eq("hunterTag", args.hunterTag))
+            .withIndex("by_tag", (q) => q.eq("hunterTag", args.hunterTag))
             .first();
 
         if (!targetUser) throw new Error("User not found");
@@ -131,7 +131,7 @@ export const getFriendCollection = query({
 
         return await ctx.db
             .query("savedScans")
-            .withIndex("by_user", (q: any) => q.eq("userId", args.friendId))
+            .withIndex("by_user", (q) => q.eq("userId", args.friendId))
             .collect();
     },
 });

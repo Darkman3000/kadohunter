@@ -26,8 +26,8 @@ import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
-import { FriendPicker } from "../../components/FriendPicker";
-import { CardPicker } from "../../components/CardPicker";
+import { FriendPicker, type PickableFriend } from "../../components/FriendPicker";
+import { CardPicker, type PickableCard } from "../../components/CardPicker";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -76,10 +76,10 @@ function TradeDeskView() {
   const [youValue, setYouValue] = useState(0);
   const [themValue, setThemValue] = useState(0);
   const [isFriendPickerVisible, setIsFriendPickerVisible] = useState(false);
-  const [selectedFriend, setSelectedFriend] = useState<any>(null);
+  const [selectedFriend, setSelectedFriend] = useState<PickableFriend | null>(null);
   const [isBinderPickerVisible, setIsBinderPickerVisible] = useState(false);
-  const [yourCards, setYourCards] = useState<any[]>([]);
-  const [theirCards, setTheirCards] = useState<any[]>([]);
+  const [yourCards, setYourCards] = useState<PickableCard[]>([]);
+  const [theirCards, setTheirCards] = useState<PickableCard[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
   const friendCollection = useQuery(
@@ -101,14 +101,14 @@ function TradeDeskView() {
     try {
       await proposeTrade({
         receiverId: selectedFriend._id,
-        proposerCards: yourCards.map((c: any) => ({
+        proposerCards: yourCards.map((c) => ({
           scanId: c._id,
           cardId: c.cardId,
           cardName: c.cardName,
           imageUrl: c.imageUrl,
           estimatedPrice: c.estimatedPrice ?? c.marketPrice,
         })),
-        receiverCards: theirCards.map((c: any) => ({
+        receiverCards: theirCards.map((c) => ({
           scanId: c._id,
           cardId: c.cardId,
           cardName: c.cardName,
@@ -121,18 +121,18 @@ function TradeDeskView() {
       setTheirCards([]);
       setYouValue(0);
       setThemValue(0);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to propose trade");
+    } catch (err: unknown) {
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to propose trade");
     }
   };
 
-  const addYourCard = (card: any) => {
+  const addYourCard = (card: PickableCard) => {
     setYourCards([...yourCards, card]);
     setYouValue(prev => prev + (card.marketPrice || 0));
     setIsBinderPickerVisible(false);
   };
 
-  const addTheirCard = (card: any) => {
+  const addTheirCard = (card: PickableCard) => {
     setTheirCards([...theirCards, card]);
     setThemValue(prev => prev + (card.marketPrice || 0));
     setIsCardPickerVisibleForThem(false);
@@ -148,7 +148,7 @@ function TradeDeskView() {
       <View className="flex-1 bg-navy/20 border-b border-white/5 justify-center items-center relative">
          <View className="absolute top-4 right-6 items-end">
            <Text className="text-[10px] font-black text-slate-text/40 uppercase tracking-tighter">
-             {selectedFriend ? selectedFriend.name.toUpperCase() : "THEM"}
+             {selectedFriend ? (selectedFriend.name ?? "Hunter").toUpperCase() : "THEM"}
            </Text>
            <Text className="text-xl font-bold text-white/50">{themValue.toFixed(2)} $</Text>
          </View>
@@ -251,7 +251,7 @@ function TradeDeskView() {
       {showHistory && myTrades && myTrades.length > 0 && (
         <View className="px-6 py-4 bg-[#020617] border-t border-white/5 max-h-[200px]">
           <ScrollView showsVerticalScrollIndicator={false}>
-            {myTrades.map((trade: any) => (
+            {myTrades.map((trade) => (
               <View key={trade._id} className="flex-row items-center py-3 border-b border-white/5">
                 <View className="flex-1">
                   <Text className="text-white text-xs font-bold">

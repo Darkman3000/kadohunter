@@ -34,7 +34,7 @@ export const endSession = mutation({
 
         const scans = await ctx.db
             .query("stagedScans")
-            .withIndex("by_session", (q: any) => q.eq("sessionId", args.sessionId))
+            .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
             .collect();
 
         const totalValue = scans.reduce((sum, s) => sum + (s.marketPrice ?? 0), 0);
@@ -56,8 +56,8 @@ export const getActiveSession = query({
     handler: async (ctx, args) => {
         return await ctx.db
             .query("fleaSessions")
-            .withIndex("by_device", (q: any) => q.eq("deviceId", args.deviceId))
-            .filter((q: any) => q.eq(q.field("status"), "active"))
+            .withIndex("by_device", (q) => q.eq("deviceId", args.deviceId))
+            .filter((q) => q.eq(q.field("status"), "active"))
             .order("desc")
             .first();
     },
@@ -72,8 +72,8 @@ export const getSessionHistory = query({
 
         return await ctx.db
             .query("fleaSessions")
-            .withIndex("by_user", (q: any) => q.eq("userId", user._id))
-            .filter((q: any) => q.eq(q.field("status"), "completed"))
+            .withIndex("by_user", (q) => q.eq("userId", user._id))
+            .filter((q) => q.eq(q.field("status"), "completed"))
             .order("desc")
             .collect();
     },
@@ -93,7 +93,7 @@ export const getSessionCards = query({
 
         return await ctx.db
             .query("stagedScans")
-            .withIndex("by_session", (q: any) => q.eq("sessionId", args.sessionId))
+            .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
             .collect();
     },
 });
@@ -136,7 +136,7 @@ export const getSharedSessions = query({
         // so we scan completed sessions and filter by sharedWith
         const allSessions = await ctx.db
             .query("fleaSessions")
-            .filter((q: any) => q.eq(q.field("status"), "completed"))
+            .filter((q) => q.eq(q.field("status"), "completed"))
             .collect();
 
         const sharedWithMe = allSessions.filter(
