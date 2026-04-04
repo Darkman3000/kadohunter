@@ -13,14 +13,14 @@ export async function getUserByTokenIdentifier(ctx: Ctx, tokenIdentifier: string
 }
 
 /**
- * Return the current identity + user row, or null if unauthenticated.
+ * When Convex has a valid JWT, returns identity and user row (user may be null until storeUser runs).
  */
 export async function getAuthenticatedUser(ctx: Ctx) {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
 
     const user = await getUserByTokenIdentifier(ctx, identity.tokenIdentifier);
-    return user ? { identity, user } : null;
+    return { identity, user: user ?? null };
 }
 
 /**

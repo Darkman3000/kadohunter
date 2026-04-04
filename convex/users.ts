@@ -5,6 +5,7 @@ const FREE_SCAN_LIMIT = 5; // Mirrors @kado/domain scanLimits.free
 import {
     getUserByTokenIdentifier,
     getAuthenticatedUser,
+    getCurrentUserOrNull,
     requireAuthorizedUser,
     requireCurrentUser,
     requireOwnedScan,
@@ -14,7 +15,10 @@ export const getCurrentUser = query({
     args: {},
     handler: async (ctx) => {
         const auth = await getAuthenticatedUser(ctx);
-        return auth?.user ?? null;
+        if (!auth) {
+            return null;
+        }
+        return auth.user;
     },
 });
 
@@ -143,7 +147,10 @@ export const getUserCollection = query({
 export const getBinderScans = query({
     args: {},
     handler: async (ctx) => {
-        const user = await requireCurrentUser(ctx);
+        const user = await getCurrentUserOrNull(ctx);
+        if (!user) {
+            return [];
+        }
         return await ctx.db
             .query("savedScans")
             .withIndex("by_user", (q) => q.eq("userId", user._id))

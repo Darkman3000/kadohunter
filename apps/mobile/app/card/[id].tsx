@@ -32,6 +32,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { Svg, Path, Defs, LinearGradient, Stop, Circle, Polyline, Text as SvgText } from "react-native-svg";
 import { KadoColors } from "@/constants/theme";
 import { BREAKPOINTS } from "@/constants/breakpoints";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import type { Card, CardCondition, TCG } from "@kado/contracts";
 import { supportedGames } from "@kado/domain";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -41,6 +42,7 @@ const CloseIcon = X as React.ComponentType<any>;
 const StarIcon = Star as React.ComponentType<any>;
 const MinusIcon = MinusIconLucide as React.ComponentType<any>;
 const PlusIconStyled = PlusIconLucide as React.ComponentType<any>;
+const PlusIcon = PlusIconLucide as React.ComponentType<any>;
 const HeartIcon = Heart as React.ComponentType<any>;
 
 const USD_FORMATTER = new Intl.NumberFormat("en-US", {
@@ -147,7 +149,9 @@ export default function CardDetailScreen() {
     mode?: 'binder' | 'market' | 'staged';
   }>();
   const { width: windowWidth } = useWindowDimensions();
+  const { maxPageColumnWidth } = useResponsiveLayout();
   const isDesktop = windowWidth >= BREAKPOINTS.DESKTOP;
+  const detailColumnMaxWidth = Math.min(960, maxPageColumnWidth);
   
   const scanId = id as string;
   const viewMode = mode || (scanId === "market" ? "market" : "binder");
@@ -180,23 +184,26 @@ export default function CardDetailScreen() {
     let price = 0;
     
     if (binderCard) {
-      name = binderCard.cardName;
-      set = binderCard.setName || "";
-      img = binderCard.imageUrl || "";
-      rare = binderCard.rarity || "RARE";
-      num = binderCard.number || "N/A";
+      const card = binderCard as any;
+      name = card.cardName;
+      set = card.setName || "";
+      img = card.imageUrl || "";
+      rare = card.rarity || "RARE";
+      num = card.number || "N/A";
     } else if (stagedCard) {
-      name = stagedCard.cardName;
-      set = stagedCard.setName || "";
-      img = stagedCard.imageUrl || "";
-      rare = stagedCard.rarity || "RARE";
+      const card = stagedCard as any;
+      name = card.cardName;
+      set = card.setName || "";
+      img = card.imageUrl || "";
+      rare = card.rarity || "RARE";
       num = "N/A";
     } else if (marketCard) {
-      name = marketCard.cardName;
-      set = marketCard.setName || "";
-      img = marketCard.imageUrl || "";
-      rare = marketCard.rarity || "RARE";
-      price = marketCard.marketPrice || 0;
+      const card = marketCard as any;
+      name = card.cardName;
+      set = card.setName || "";
+      img = card.imageUrl || "";
+      rare = card.rarity || "RARE";
+      price = card.marketPrice || 0;
     }
 
     return { name, set, img, rare, num, price };
@@ -221,12 +228,12 @@ export default function CardDetailScreen() {
 
   const latestPrice = useQuery(
     api.prices.getLatestPrice,
-    rawCard ? { cardId: rawCard.cardId, gameCode: rawCard.gameCode } : "skip"
+    rawCard ? { cardId: (rawCard as any).cardId, gameCode: (rawCard as any).gameCode } : "skip"
   );
 
   const historicalData = useQuery(
     api.prices.getHistoricalData,
-    rawCard ? { cardId: rawCard.cardId, gameCode: rawCard.gameCode, limit: 30 } : "skip"
+    rawCard ? { cardId: (rawCard as any).cardId, gameCode: (rawCard as any).gameCode, limit: 30 } : "skip"
   );
 
   const priceChangeStr = useMemo(() => {
@@ -241,16 +248,16 @@ export default function CardDetailScreen() {
   const toggleWishlist = useMutation(api.wishlists.toggleWishlistItem);
   const isOnWishlist = useQuery(
     api.wishlists.isOnWishlist,
-    rawCard ? { cardId: rawCard.cardId, gameCode: rawCard.gameCode } : "skip"
+    rawCard ? { cardId: (rawCard as any).cardId, gameCode: (rawCard as any).gameCode } : "skip"
   );
 
   useEffect(() => {
     if (rawCard && (!latestPrice || latestPrice.isStale)) {
         setIsSyncing(true);
-        syncPrice({ cardId: rawCard.cardId, gameCode: rawCard.gameCode, cardName: rawCard.cardName })
+        syncPrice({ cardId: (rawCard as any).cardId, gameCode: (rawCard as any).gameCode, cardName: (rawCard as any).cardName || "Unknown" })
             .finally(() => setIsSyncing(false));
     }
-  }, [rawCard?.cardId, latestPrice === null]);
+  }, [(rawCard as any)?.cardId, latestPrice === null]);
 
   if (rawCard === undefined || !displayCard) {
     return (
@@ -263,7 +270,14 @@ export default function CardDetailScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: KadoColors.midnight }} edges={["top", "bottom"]}>
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View style={{ width: isDesktop ? 960 : "100%", alignSelf: 'center', paddingHorizontal: isDesktop ? 40 : 20, paddingTop: 20 }}>
+        <View
+          style={{
+            width: isDesktop ? detailColumnMaxWidth : "100%",
+            alignSelf: "center",
+            paddingHorizontal: isDesktop ? 40 : 20,
+            paddingTop: 20,
+          }}
+        >
           
           {/* Header Row */}
           <View className="flex-row items-start justify-between mb-8">
@@ -306,11 +320,11 @@ export default function CardDetailScreen() {
                   if (!rawCard) return;
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   await toggleWishlist({
-                    cardId: rawCard.cardId,
-                    gameCode: rawCard.gameCode,
-                    cardName: rawCard.cardName,
-                    setName: rawCard.setName,
-                    imageUrl: rawCard.imageUrl
+                    cardId: (rawCard as any).cardId,
+                    gameCode: (rawCard as any).gameCode,
+                    cardName: (rawCard as any).cardName,
+                    setName: (rawCard as any).setName,
+                    imageUrl: (rawCard as any).imageUrl,
                   });
                 }}
                 className={`w-10 h-10 rounded-full items-center justify-center border ${isOnWishlist ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10'}`}

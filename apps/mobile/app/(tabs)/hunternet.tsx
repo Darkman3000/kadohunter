@@ -147,7 +147,7 @@ function MarketTab({ dashboardCards, tickerData, lastUpdatedLabel, isFeedRefresh
 
 export default function HunterNetScreen() {
   const router = useRouter();
-  const { isDesktop } = useResponsiveLayout();
+  const { isDesktop, maxPageColumnWidth } = useResponsiveLayout();
 
   const [activeTab, setActiveTab] = useState<HunterNetTab>("Pulse");
   const [isFeedRefreshing, setIsFeedRefreshing] = useState(false);
@@ -186,8 +186,9 @@ export default function HunterNetScreen() {
         className="flex-1"
         contentContainerStyle={{
           paddingBottom: 40,
-          alignSelf: isDesktop ? "center" : "auto",
-          width: isDesktop ? 1100 : "100%",
+          width: "100%",
+          maxWidth: isDesktop ? maxPageColumnWidth : undefined,
+          alignSelf: isDesktop ? "center" : undefined,
         }}
         showsVerticalScrollIndicator={false}
       >

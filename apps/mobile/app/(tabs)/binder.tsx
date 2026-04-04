@@ -1,7 +1,6 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Platform,
   Pressable,
@@ -13,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
 import {
   ArrowUpDown,
   BookOpen,
@@ -33,10 +32,10 @@ import {
   SlidersHorizontal,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import type { Card } from "@kado/contracts";
 import { KadoColors } from "@/constants/theme";
-import { BREAKPOINTS } from "@/constants/breakpoints";
+import { BREAKPOINTS, LAYOUT } from "@/constants/breakpoints";
 import { getGameLabel } from "@/utils/gameLabels";
 import { getGameTone, getRarityBorderColor } from "@/utils/gameStyles";
 import { api } from "../../../../convex/_generated/api";
@@ -62,9 +61,13 @@ function useGridLayout() {
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
   const isDesktop = isWeb && width >= BREAKPOINTS.DESKTOP;
-  
-  // If web and not desktop, we are in the 480px centered box
-  const availableWidth = isDesktop ? width - 80 : isWeb ? Math.min(width, 480) : width;
+
+  const contentPaneWidth = isDesktop
+    ? width - LAYOUT.SIDEBAR_WIDTH
+    : isWeb
+      ? Math.min(width, 480)
+      : width;
+  const availableWidth = isDesktop ? contentPaneWidth - 32 : contentPaneWidth;
   const numColumns = isDesktop ? 5 : 3;
   const cardWidth = (availableWidth - (GRID_PADDING * 2) - (CARD_GAP * (numColumns - 1))) / numColumns;
   const cardHeight = cardWidth * 1.4;
@@ -136,22 +139,51 @@ export default function BinderScreen() {
 function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
   const router = useRouter();
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const { user, isLoaded: isUserLoaded } = useUser();
+  const { signOut } = useClerk();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("dateAdded");
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
+  const [linkWaitExpired, setLinkWaitExpired] = useState(false);
 
+  const storeUserMutation = useMutation(api.users.storeUser);
   const currentUser = useQuery(api.users.getCurrentUser, isAuthLoaded && isSignedIn ? {} : "skip");
   const rawScans = useQuery(api.users.getUserCollection, currentUser?._id ? { userId: currentUser._id } : "skip");
+
+  useEffect(() => {
+    if (currentUser !== null) {
+      setLinkWaitExpired(false);
+      return;
+    }
+    if (currentUser === undefined) {
+      return;
+    }
+    const t = setTimeout(() => setLinkWaitExpired(true), 12000);
+    return () => clearTimeout(t);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!isAuthLoaded || !isUserLoaded || !isSignedIn || !user?.id) return;
+    if (currentUser !== null || currentUser === undefined) return;
+    void storeUserMutation({
+      tokenIdentifier: user.id,
+      email: user.emailAddresses[0]?.emailAddress,
+      name: user.fullName || undefined,
+    }).catch((err: unknown) => {
+      console.error("Binder storeUser", err);
+    });
+  }, [isAuthLoaded, isUserLoaded, isSignedIn, user?.id, currentUser, storeUserMutation]);
 
   const { numColumns, cardWidth, cardHeight, isDesktop } = useGridLayout();
 
   const cards = useMemo<Card[]>(() => {
-    if (!rawScans) return [];
-    return (Array.isArray(rawScans) ? rawScans.map(mapScanToCard) : []);
-  }, [rawScans]);
+    if (!currentUser?._id) return [];
+    if (rawScans === undefined) return [];
+    return Array.isArray(rawScans) ? rawScans.map(mapScanToCard) : [];
+  }, [currentUser?._id, rawScans]);
 
   const filteredCards = useMemo(() => {
     let result = [...cards];
@@ -276,6 +308,20 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
   }, [handleCardPress, viewMode, cardWidth, numColumns]);
 
   const renderEmptyState = useCallback(() => {
+    if (!currentUser?._id) {
+      return (
+        <View className="flex-1 items-center justify-center px-6 pt-16">
+          <View className="w-24 h-24 rounded-full border border-white/10 bg-navy/60 items-center justify-center mb-5">
+            <BookOpenIcon size={38} color={KadoColors.umber} strokeWidth={1.6} />
+          </View>
+          <Text className="text-light-slate text-xl font-bold mb-2 text-center">Binder ready</Text>
+          <Text className="text-slate-text text-sm text-center leading-6 max-w-[280px]">
+            Your collection appears here once your profile is linked to the server. Check the notice above if this takes
+            too long.
+          </Text>
+        </View>
+      );
+    }
     if (cards.length === 0) {
       return (
         <View className="flex-1 items-center justify-center px-6 pt-20">
@@ -301,7 +347,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
         </Pressable>
       </View>
     );
-  }, [router, cards.length]);
+  }, [router, cards.length, currentUser?._id]);
 
   if (!isAuthLoaded) {
     return (
@@ -330,19 +376,49 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
     );
   }
 
-  if (currentUser === undefined || rawScans === undefined) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: KadoColors.midnight }} edges={["top"]}>
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={KadoColors.umber} />
-          <Text className="mt-4 text-slate-text text-sm">Syncing Binder...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: KadoColors.midnight }} edges={["top"]}>
+      {isSignedIn && (currentUser === undefined || currentUser === null) ? (
+        <View className="mx-5 mt-2 px-3 py-2.5 rounded-xl bg-amber-500/12 border border-amber-500/25">
+          {currentUser === undefined ? (
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator size="small" color={KadoColors.umber} />
+              <Text className="text-amber-100/90 text-xs flex-1 leading-5">
+                Loading your hunter profile…
+              </Text>
+            </View>
+          ) : !linkWaitExpired ? (
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator size="small" color={KadoColors.umber} />
+              <Text className="text-amber-100/90 text-xs flex-1 leading-5">
+                Linking your account to the game server…
+              </Text>
+            </View>
+          ) : (
+            <View>
+              <Text className="text-amber-100/90 text-xs leading-5 mb-2">
+                Could not verify your session with the backend. In Clerk, create a JWT template named{" "}
+                <Text className="font-mono text-white">convex</Text>, ensure Convex auth is configured, clear site data for
+                localhost if needed, then sign out and sign in again.
+              </Text>
+              <View className="flex-row flex-wrap gap-2">
+                <Pressable
+                  onPress={() => onRetry()}
+                  className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/15 active:opacity-80"
+                >
+                  <Text className="text-light-slate text-xs font-bold">Retry</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void signOut().then(() => router.push("/profile"))}
+                  className="px-3 py-1.5 rounded-lg bg-umber active:opacity-90"
+                >
+                  <Text className="text-midnight text-xs font-bold">Sign out</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+        </View>
+      ) : null}
       <View className="px-5 pt-6 pb-4">
           <View className="mb-6">
             <View className="bg-navy/40 border border-white/5 rounded-3xl p-6 shadow-soft-lg flex-col gap-4">

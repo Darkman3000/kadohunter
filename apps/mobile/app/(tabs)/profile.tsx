@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -57,14 +56,16 @@ function renderIcon(Icon: React.ComponentType<any>, props: Record<string, unknow
 }
 
 function LoadingState({ label }: { label: string }) {
+  const { isWeb, isDesktop, maxNarrowColumnWidth } = useResponsiveLayout();
+  const webColumnStyle =
+    isWeb && isDesktop
+      ? { width: "100%" as const, maxWidth: maxNarrowColumnWidth, alignSelf: "center" as const }
+      : isWeb
+        ? { width: "100%" as const, maxWidth: 480, alignSelf: "center" as const }
+        : null;
   return (
     <SafeAreaView
-      style={[
-        { flex: 1, backgroundColor: KadoColors.midnight },
-        Platform.OS === "web"
-          ? { width: "100%", maxWidth: 480, alignSelf: "center" }
-          : null,
-      ]}
+      style={[{ flex: 1, backgroundColor: KadoColors.midnight }, webColumnStyle]}
       edges={["top"]}
     >
       <View className="flex-1 items-center justify-center px-6">
@@ -132,14 +133,16 @@ function SignedOutState({
   authError: string | null;
   onOAuthPress: (provider: AuthProvider) => void;
 }) {
+  const { isWeb, isDesktop, maxNarrowColumnWidth } = useResponsiveLayout();
+  const webColumnStyle =
+    isWeb && isDesktop
+      ? { width: "100%" as const, maxWidth: maxNarrowColumnWidth, alignSelf: "center" as const }
+      : isWeb
+        ? { width: "100%" as const, maxWidth: 480, alignSelf: "center" as const }
+        : null;
   return (
     <SafeAreaView
-      style={[
-        { flex: 1, backgroundColor: KadoColors.midnight },
-        Platform.OS === "web"
-          ? { width: "100%", maxWidth: 480, alignSelf: "center" }
-          : null,
-      ]}
+      style={[{ flex: 1, backgroundColor: KadoColors.midnight }, webColumnStyle]}
       edges={["top"]}
     >
       <ScrollView
@@ -438,7 +441,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const { isDesktop } = useResponsiveLayout();
+  const { isDesktop, maxPageColumnWidth } = useResponsiveLayout();
 
   if (!isAuthLoaded || !isUserLoaded) {
     return <LoadingState label="Loading hunter profile..." />;
@@ -479,7 +482,12 @@ export default function ProfileScreen() {
     >
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 40, alignSelf: isDesktop ? 'center' : 'auto', width: isDesktop ? 1100 : '100%' }}
+        contentContainerStyle={{
+          paddingBottom: 40,
+          width: "100%",
+          maxWidth: isDesktop ? maxPageColumnWidth : undefined,
+          alignSelf: isDesktop ? "center" : undefined,
+        }}
         showsVerticalScrollIndicator={false}
       >
         <View className="px-5 pt-6 pb-4">

@@ -1,10 +1,9 @@
 import "../global.css";
 
-import { ClerkLoaded, ClerkProvider, useUser } from "@clerk/clerk-expo";
+import { ClerkLoaded, ClerkProvider, useAuth, useUser } from "@clerk/clerk-expo";
 import { tokenCache } from "@/lib/token-cache";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
-import { useAuth } from "@clerk/clerk-expo";
 import { useEffect, useRef } from "react";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -150,6 +149,16 @@ function InitUser() {
   return null;
 }
 
+/** Prime the Clerk JWT template named `convex` on web so Convex websocket auth wins the race less often. */
+function WebConvexTokenWarmup() {
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  useEffect(() => {
+    if (Platform.OS !== "web" || !isLoaded || !isSignedIn || !getToken) return;
+    void getToken({ template: "convex", skipCache: true }).catch(() => {});
+  }, [isLoaded, isSignedIn, getToken]);
+  return null;
+}
+
 export default function RootLayout() {
   const clerkKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const { width } = useWindowDimensions();
@@ -167,6 +176,7 @@ export default function RootLayout() {
       <ClerkLoaded>
         <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
           <InitUser />
+          <WebConvexTokenWarmup />
           <SafeAreaProvider style={{ backgroundColor: "#020617" }}>
             <View
               style={{
@@ -181,7 +191,13 @@ export default function RootLayout() {
               {isDesktop && <Sidebar />}
               <View
                 style={[
-                  { overflow: "hidden", backgroundColor: "#0a192f" },
+                  {
+                    overflow: "hidden",
+                    backgroundColor: "#0a192f",
+                    // Let the main pane shrink beside the sidebar (RN Web flex default min-width:auto overflows)
+                    minWidth: 0,
+                    flex: 1,
+                  },
                   // Mobile web: fixed phone-like column, centered
                   isWeb && !isDesktop && {
                     width: "100%",
@@ -197,19 +213,20 @@ export default function RootLayout() {
                   },
                   // Desktop: fill remaining space beside sidebar
                   isDesktop && {
-                    flex: 1,
                     borderLeftWidth: 1,
                     borderLeftColor: "rgba(255,255,255,0.05)",
                   },
-                  // Native mobile: just fill
-                  !isWeb && { flex: 1 },
                 ]}
               >
                 <ErrorBoundary>
                   <Stack
                     screenOptions={{
                       headerShown: false,
-                      contentStyle: { backgroundColor: "#0a192f" },
+                      contentStyle: {
+                        backgroundColor: "#0a192f",
+                        flex: 1,
+                        minWidth: 0,
+                      },
                     }}
                   >
                     <Stack.Screen name="(tabs)" />

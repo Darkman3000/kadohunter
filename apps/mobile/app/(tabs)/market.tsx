@@ -33,7 +33,7 @@ type MarketSubTab = (typeof MARKET_SUB_TABS)[number];
 
 export default function MarketScreen() {
   const router = useRouter();
-  const { isDesktop } = useResponsiveLayout();
+  const { isDesktop, maxPageColumnWidth } = useResponsiveLayout();
 
   const [marketSubTab, setMarketSubTab] = useState<MarketSubTab>("Dashboard");
   const [isFeedRefreshing, setIsFeedRefreshing] = useState(false);
@@ -70,8 +70,9 @@ export default function MarketScreen() {
         className="flex-1"
         contentContainerStyle={{
           paddingBottom: 40,
-          alignSelf: isDesktop ? "center" : "auto",
-          width: isDesktop ? 1100 : "100%",
+          width: "100%",
+          maxWidth: isDesktop ? maxPageColumnWidth : undefined,
+          alignSelf: isDesktop ? "center" : undefined,
         }}
         showsVerticalScrollIndicator={false}
       >
