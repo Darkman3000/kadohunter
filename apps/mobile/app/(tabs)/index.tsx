@@ -1,13 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   Pressable,
   ActivityIndicator,
   Alert,
-  Dimensions,
   Linking,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -36,6 +36,7 @@ import {
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
+import { BREAKPOINTS } from "@/constants/breakpoints";
 import {
   recognitionService,
   type RecognitionResult,
@@ -45,10 +46,6 @@ import { scanLimits } from "@kado/domain";
 
 const FREE_SCAN_LIMIT = scanLimits.free;
 const LOW_CONFIDENCE_THRESHOLD = 0.65;
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const FRAME_WIDTH = Math.min(SCREEN_WIDTH * 0.72, 300);
-const FRAME_HEIGHT = FRAME_WIDTH * 1.25;
 
 const ScanIcon = Scan as React.ComponentType<any>;
 const UploadIcon = Upload as React.ComponentType<any>;
@@ -122,6 +119,16 @@ const getPermissionErrorMessage = (error: unknown) => {
 
 export default function ScannerScreen() {
   const router = useRouter();
+  const { width: winW } = useWindowDimensions();
+  const { frameWidth, frameHeight } = useMemo(() => {
+    const isDesktopWeb = Platform.OS === "web" && winW >= BREAKPOINTS.DESKTOP;
+    const fw = Math.min(
+      winW * (isDesktopWeb ? 0.36 : 0.72),
+      isDesktopWeb ? 460 : 300
+    );
+    const fh = fw * 1.25;
+    return { frameWidth: fw, frameHeight: fh };
+  }, [winW]);
   const { viewMode, scanId, sessionId } = useLocalSearchParams();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -149,7 +156,7 @@ export default function ScannerScreen() {
   const [scanMode, setScanMode] = useState<ScanMode>("Binder");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const saveToStaged = useMutation(api.users.saveToStaged);
-  const scanLineOffset = useSharedValue(FRAME_HEIGHT * 0.16);
+  const scanLineOffset = useSharedValue(frameHeight * 0.16);
 
   const scansToday = currentUser?.scansToday ?? 0;
   const isFreeTier = (currentUser?.tier ?? "free") === "free";
@@ -169,10 +176,16 @@ export default function ScannerScreen() {
   }, [feedback]);
 
   useEffect(() => {
+    if (!isScanning) {
+      scanLineOffset.value = frameHeight * 0.16;
+    }
+  }, [frameHeight, isScanning, scanLineOffset]);
+
+  useEffect(() => {
     if (isScanning) {
       scanLineOffset.value = 0;
       scanLineOffset.value = withRepeat(
-        withTiming(FRAME_HEIGHT - 8, {
+        withTiming(frameHeight - 8, {
           duration: 1450,
           easing: Easing.inOut(Easing.linear),
         }),
@@ -181,11 +194,11 @@ export default function ScannerScreen() {
       );
     } else {
       cancelAnimation(scanLineOffset);
-      scanLineOffset.value = FRAME_HEIGHT * 0.16;
+      scanLineOffset.value = frameHeight * 0.16;
     }
 
     return () => cancelAnimation(scanLineOffset);
-  }, [isScanning, scanLineOffset]);
+  }, [isScanning, frameHeight, scanLineOffset]);
 
   const scanLineAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: scanLineOffset.value }],
@@ -573,8 +586,8 @@ export default function ScannerScreen() {
             )}
 
             <ScannerFrame
-              width={FRAME_WIDTH}
-              height={FRAME_HEIGHT}
+              width={frameWidth}
+              height={frameHeight}
               isScanning={isScanning}
               scanLineAnimatedStyle={scanLineAnimatedStyle}
             />

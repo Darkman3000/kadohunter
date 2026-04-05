@@ -9,6 +9,7 @@ import {
   Zap,
 } from "lucide-react-native";
 import { KadoColors } from "@/constants/theme";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { HunterLicenseCard } from "./HunterLicenseCard";
 
 function renderIcon(Icon: React.ComponentType<any>, props: Record<string, unknown>) {
@@ -66,9 +67,20 @@ export function ProfileDashboard({
   isDesktop: boolean;
   onUpgrade: () => void;
 }) {
+  const { isLargeDesktop } = useResponsiveLayout();
+  const licenseColWidth = isDesktop ? (isLargeDesktop ? 440 : 400) : undefined;
+  const rowGap = isDesktop ? (isLargeDesktop ? 48 : 32) : undefined;
+  const rowPad = isDesktop ? (isLargeDesktop ? 24 : 20) : 0;
+
   return (
-    <View style={isDesktop ? { flexDirection: 'row', gap: 40, paddingHorizontal: 20 } : {}}>
-      <View style={isDesktop ? { width: 420 } : {}}>
+    <View
+      style={
+        isDesktop
+          ? { flexDirection: "row", gap: rowGap, paddingHorizontal: rowPad }
+          : {}
+      }
+    >
+      <View style={isDesktop && licenseColWidth ? { width: licenseColWidth } : {}}>
         <GestureHandlerRootView>
           <HunterLicenseCard
             displayName={displayName}

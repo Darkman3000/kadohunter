@@ -283,7 +283,14 @@ export default function HunterNetScreen() {
                 </View>
               )}
 
-              <View style={isDesktop ? { width: '100%', maxWidth: 800 } : {}} className="bg-navy/40 border border-white/10 p-6 rounded-[32px] mb-6 shadow-soft-lg">
+              <View
+                style={
+                  isDesktop
+                    ? { width: "100%", maxWidth: Math.min(960, maxPageColumnWidth - 48) }
+                    : {}
+                }
+                className="bg-navy/40 border border-white/10 p-6 rounded-[32px] mb-6 shadow-soft-lg"
+              >
                   <View className="flex-row items-center justify-between mb-6 border-b border-white/5 pb-6">
                       <View className="flex-row items-center gap-4">
                           <View className="w-12 h-12 rounded-full bg-blue-500/10 border border-blue-500/30 items-center justify-center shadow-lg">

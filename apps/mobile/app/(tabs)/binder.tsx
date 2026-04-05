@@ -31,12 +31,13 @@ import {
   Maximize,
   SlidersHorizontal,
   Upload,
+  ExternalLink,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
 import type { Card } from "@kado/contracts";
 import { KadoColors } from "@/constants/theme";
-import { BREAKPOINTS, LAYOUT } from "@/constants/breakpoints";
+import { BREAKPOINTS, getWebSidebarWidth } from "@/constants/breakpoints";
 import { getGameLabel } from "@/utils/gameLabels";
 import { getGameTone, getRarityBorderColor } from "@/utils/gameStyles";
 import { api } from "../../../../convex/_generated/api";
@@ -55,22 +56,23 @@ const ChevronDownIcon = ChevronDown as React.ComponentType<any>;
 const MaximizeIcon = Maximize as React.ComponentType<any>;
 const SlidersHorizontalIcon = SlidersHorizontal as React.ComponentType<any>;
 const UploadIcon = Upload as React.ComponentType<any>;
+const ExternalLinkIcon = ExternalLink as React.ComponentType<any>;
 
 const GRID_PADDING = 16;
 const CARD_GAP = 12;
 
-function useGridLayout() {
-  const { width } = useWindowDimensions();
-  const isWeb = Platform.OS === "web";
-  const isDesktop = isWeb && width >= BREAKPOINTS.DESKTOP;
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
-  const contentPaneWidth = isDesktop
-    ? width - LAYOUT.SIDEBAR_WIDTH
-    : isWeb
-      ? Math.min(width, 480)
-      : width;
-  const availableWidth = isDesktop ? contentPaneWidth - 32 : contentPaneWidth;
-  const numColumns = isDesktop ? 5 : 3;
+function useGridLayout() {
+  const { isDesktop, availableWidth: rawAvailableWidth } = useResponsiveLayout();
+  
+  const availableWidth = isDesktop ? rawAvailableWidth - 32 : rawAvailableWidth;
+  let numColumns = 3;
+  if (isDesktop) {
+    if (availableWidth >= 1080) numColumns = 6;
+    else if (availableWidth >= 820) numColumns = 5;
+    else numColumns = 4;
+  }
   const cardWidth = (availableWidth - (GRID_PADDING * 2) - (CARD_GAP * (numColumns - 1))) / numColumns;
   const cardHeight = cardWidth * 1.4;
 
@@ -311,23 +313,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
 
   const renderEmptyState = useCallback(() => {
     if (!currentUser?._id || cards.length === 0) {
-      return (
-        <View className="flex-1 items-center justify-center px-6 pt-20">
-          <View className="w-24 h-24 rounded-full border border-white/10 bg-navy/60 items-center justify-center mb-5 relative overflow-hidden">
-            <View className="absolute inset-0 bg-umber/5" />
-            <BookOpenIcon size={38} color={KadoColors.umber} strokeWidth={1.6} />
-          </View>
-          <Text className="text-light-slate text-2xl font-bold mb-2 text-center">Add your first card</Text>
-          <Text className="text-slate-text text-sm text-center leading-6 max-w-[280px] mb-7">
-            Scan with your camera or upload a photo to add a card to your binder and start tracking value.
-          </Text>
-          <Pressable onPress={() => router.push("/")} className="px-7 py-3.5 rounded-2xl bg-umber flex-row items-center gap-2 active:scale-95">
-            <ScanIcon size={18} color={KadoColors.midnight} />
-            <UploadIcon size={18} color={KadoColors.midnight} />
-            <Text className="text-midnight font-bold text-sm">Scan or upload</Text>
-          </Pressable>
-        </View>
-      );
+      return null;
     }
     return (
       <View className="flex-1 items-center justify-center px-6 pt-20">
@@ -338,7 +324,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
         </Pressable>
       </View>
     );
-  }, [router, cards.length, currentUser?._id]);
+  }, [cards.length, currentUser?._id]);
 
   if (!isAuthLoaded) {
     return (
@@ -410,12 +396,12 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
           )}
         </View>
       ) : null}
-      <View className="px-5 pt-6 pb-4">
+      <View className="px-5 pt-6 pb-4 max-w-[1320px] w-full self-center">
           <View className="mb-6">
-            <View className="bg-navy/40 border border-white/5 rounded-3xl p-6 shadow-soft-lg flex-col gap-4 overflow-hidden">
+            <View className="bg-navy/40 border border-white/5 rounded-2xl p-6 shadow-soft-lg flex-col gap-4 overflow-hidden">
                 <View>
-                    <Text className="text-slate-text text-xs font-bold uppercase tracking-wider mb-1">Portfolio Value</Text>
-                    <Text className="text-4xl font-bold text-light-slate tracking-tight font-mono">{formatUsd(portfolioStats.totalValue)}</Text>
+                    <Text className="text-slate-text text-[10px] font-bold uppercase tracking-wider mb-1">Portfolio Value</Text>
+                    <Text className="text-3xl font-bold text-white tracking-tight font-mono">{formatUsd(portfolioStats.totalValue)}</Text>
                 </View>
 
                 <View className="h-px self-stretch bg-white/5" />
@@ -424,73 +410,104 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                     <View className="flex-1 min-w-0 pr-3">
                         <Text className="text-slate-text text-[10px] font-bold uppercase tracking-wider mb-1">7D Change</Text>
                         <View className="flex-row items-center gap-1.5 flex-wrap">
-                            <TrendingUp size={16} color="#4ade80" />
-                            <Text className="text-lg font-bold font-mono text-emerald-400">+$124.50</Text>
+                            <TrendingUp size={14} color="#4ade80" />
+                            <Text className="text-sm font-bold font-mono text-emerald-400">+$124.50</Text>
                         </View>
                     </View>
-                    <View className="w-px self-stretch bg-white/10" />
                     <View className="flex-1 min-w-0 pl-3">
                         <Text className="text-slate-text text-[10px] font-bold uppercase tracking-wider mb-1">Collection</Text>
-                        <Text className="text-lg font-bold font-mono text-white">{cards.length}</Text>
+                        <Text className="text-sm font-bold font-mono text-white">{cards.length}</Text>
                     </View>
                 </View>
             </View>
           </View>
-          <View className="mb-4 relative z-20">
-              <Pressable className="flex-row items-center justify-between gap-2 w-full px-4 py-3 bg-midnight/50 border border-white/10 rounded-xl shadow-inner active:scale-[0.98]">
+
+          {cards.length === 0 && (
+            <View className="mb-6 bg-[#171b2d] border border-white/5 rounded-2xl flex-row items-stretch overflow-hidden min-h-[220px]">
+                {/* Left Side: Illustration */}
+                <View className="w-[340px] items-center justify-center pt-8 pl-8 overflow-hidden bg-gradient-to-r from-transparent to-[#131623]">
+                    <Image source={require("../../assets/images/nano_banana_cards.png")} style={{width: 320, height: 210, transform: [{translateY: 10}, {translateX: -10}]}} contentFit="contain" />
+                </View>
+                {/* Right Side: Content */}
+                <View className="flex-1 py-10 px-8 justify-center">
+                    <Text className="text-2xl font-bold text-white mb-2 tracking-tight">
+                        Add cards <Text className="font-normal text-light-slate">to organize and track your TCG collection</Text>
+                    </Text>
+                    <Text className="text-slate-text text-sm leading-6 mb-5 max-w-[500px]">
+                        Upload photos or scan your cards to add them to your binder and start tracking value.
+                    </Text>
+                    <View className="flex-col items-start gap-3 mt-1">
+                        <Pressable onPress={() => router.push("/")} className="px-5 py-2.5 rounded-xl bg-[#c7a77b] flex-row items-center justify-center gap-2 active:scale-95 shadow-lg shadow-black/20">
+                            <MaximizeIcon size={16} color="#020617" />
+                            <UploadIcon size={16} color="#020617" />
+                            <Text className="text-[#020617] font-bold text-sm">Scan or uload</Text>
+                        </Pressable>
+                        <Pressable className="flex-row items-center gap-1 opacity-90 pl-1">
+                            <Text className="text-white font-medium text-[13px] tracking-wide">Import collection</Text>
+                            <ChevronDownIcon size={14} color="#ffffff" />
+                        </Pressable>
+                    </View>
+                </View>
+            </View>
+          )}
+
+          <View className="mb-4">
+              <Pressable className="flex-row items-center justify-between w-full px-4 py-3 bg-navy/20 border border-white/5 rounded-xl shadow-inner active:scale-[0.98]">
                   <View className="flex-row items-center gap-2">
-                      <BookOpenIcon size={16} color={KadoColors.umber} />
-                      <Text className="text-light-slate font-bold text-sm">All Cards</Text>
+                      <BookOpenIcon size={16} color={KadoColors.slateText} />
+                      <Text className="text-white font-bold text-sm">All Cards</Text>
                   </View>
                   <ChevronDownIcon size={16} color={KadoColors.slateText} />
               </Pressable>
           </View>
 
           <View className="flex-row items-center gap-3 mb-4">
-              <Pressable className="flex-1 bg-navy border border-white/10 h-[46px] rounded-xl flex-row items-center justify-center gap-2 shadow-sm active:scale-95">
-                  <SlidersHorizontalIcon size={18} color={KadoColors.lightSlate} />
-                  <Text className="text-sm font-bold text-light-slate">Filter & Sort</Text>
-              </Pressable>
+              <View className="flex-1 relative flex-row items-center">
+                  <View className="absolute left-3 z-10">
+                      <SearchIcon size={16} color={KadoColors.slateText} />
+                  </View>
+                  <TextInput 
+                    placeholder="Search binder..." 
+                    placeholderTextColor="rgba(136,146,176,0.5)" 
+                    className="flex-1 bg-navy/40 border border-white/5 rounded-xl py-3 pl-10 pr-[120px] text-sm text-light-slate h-[46px]"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                  <View className="absolute right-2 z-10">
+                      <Pressable className="flex-row items-center gap-2 px-3 py-1.5 rounded-lg active:bg-white/10">
+                          <SlidersHorizontalIcon size={14} color={KadoColors.lightSlate} />
+                          <Text className="text-sm font-bold text-light-slate">Filter & Sort</Text>
+                      </Pressable>
+                  </View>
+              </View>
               
-              <Pressable onPress={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} className="bg-navy border border-white/10 w-12 h-[46px] rounded-xl flex items-center justify-center active:scale-95">
-                  {viewMode === 'grid' ? <ListIcon size={20} color={KadoColors.slateText} /> : <LayoutGrid size={20} color={KadoColors.slateText} />}
-              </Pressable>
+              <View className="flex-row items-center bg-navy/40 border border-white/5 rounded-xl p-1 h-[46px]">
+                  <Pressable onPress={() => setViewMode('list')} className={`w-10 h-full rounded-lg items-center justify-center ${viewMode === 'list' ? 'bg-white/10' : ''}`}>
+                      <ListIcon size={18} color={viewMode === 'list' ? KadoColors.lightSlate : KadoColors.slateText} />
+                  </Pressable>
+                  <Pressable onPress={() => setViewMode('grid')} className={`w-10 h-full rounded-lg items-center justify-center ${viewMode === 'grid' ? 'bg-white/10' : ''}`}>
+                      <BookOpenIcon size={18} color={viewMode === 'grid' ? KadoColors.lightSlate : KadoColors.slateText} />
+                  </Pressable>
+              </View>
 
-              <Pressable className="bg-navy border border-white/10 w-12 h-[46px] rounded-xl flex items-center justify-center active:scale-95">
-                  <MaximizeIcon size={20} color={KadoColors.slateText} />
+              <Pressable className="bg-navy/40 border border-white/5 w-[46px] h-[46px] rounded-xl items-center justify-center active:scale-95">
+                  <ExternalLinkIcon size={18} color={KadoColors.slateText} />
               </Pressable>
-
-              <Pressable className="bg-navy border border-white/10 w-12 h-[46px] rounded-xl flex items-center justify-center active:scale-95">
-                  <CheckSquareIcon size={20} color={KadoColors.slateText} />
-              </Pressable>
-          </View>
-          
-          <View className="relative mb-4 flex-row items-center gap-3">
-            <View className="relative flex-1">
-                <View className="absolute left-3 top-3.5 z-10">
-                    <SearchIcon size={16} color={KadoColors.slateText} />
-                </View>
-                <TextInput 
-                  placeholder="Search binder..." 
-                  placeholderTextColor="rgba(136,146,176,0.5)" 
-                  className="w-full bg-navy/40 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-light-slate"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-            </View>
           </View>
       </View>
-      <FlatList
-        data={filteredCards}
-        renderItem={renderCardItem}
-        keyExtractor={(item) => item.id}
-        numColumns={viewMode === "grid" ? numColumns : 1}
-        key={`${viewMode}-${numColumns}`}
-        contentContainerStyle={{ paddingHorizontal: viewMode === "grid" ? GRID_PADDING : 0, paddingTop: 6, paddingBottom: 24, flexGrow: 1 }}
-        ListEmptyComponent={renderEmptyState}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={KadoColors.umber} colors={[KadoColors.umber]} />}
-      />
+      <View className="flex-1 w-full max-w-[1320px] self-center">
+        <FlatList
+          data={filteredCards}
+          renderItem={renderCardItem}
+          keyExtractor={(item) => item.id}
+          numColumns={viewMode === "grid" ? numColumns : 1}
+          key={`${viewMode}-${numColumns}`}
+          contentContainerStyle={{ paddingHorizontal: viewMode === "grid" ? GRID_PADDING : 0, paddingTop: 6, paddingBottom: 24, flexGrow: 1 }}
+          ListEmptyComponent={renderEmptyState}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={KadoColors.umber} colors={[KadoColors.umber]} />}
+        />
+      </View>
     </SafeAreaView>
   );
 }

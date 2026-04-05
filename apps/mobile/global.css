@@ -22,6 +22,14 @@
     min-height: 100dvh;
     background-color: var(--app-chrome-bg);
   }
+
+  /* Desktop web: clearer text selection in dark UI */
+  @media (min-width: 768px) {
+    ::selection {
+      background-color: rgba(199, 167, 123, 0.35);
+      color: #f8fafc;
+    }
+  }
 }
 
 @layer utilities {

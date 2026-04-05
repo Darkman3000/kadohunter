@@ -357,9 +357,13 @@ export default function CardDetailScreen() {
              </View>
           </View>
 
-          <PriceGraph 
-            width={isDesktop ? 880 : windowWidth - 40} 
-            height={200} 
+          <PriceGraph
+            width={
+              isDesktop
+                ? Math.min(detailColumnMaxWidth - 80, 1040)
+                : windowWidth - 40
+            }
+            height={isDesktop ? 220 : 200}
             data={historicalData ?? []}
           />
 

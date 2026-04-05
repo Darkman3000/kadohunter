@@ -14,7 +14,7 @@ import { BookOpen, Scan, User, LogOut, BarChart3, ArrowLeftRight, Globe } from "
 import { api } from "../../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { KadoColors } from "@/constants/theme";
-import { BREAKPOINTS } from "@/constants/breakpoints";
+import { BREAKPOINTS, getWebSidebarWidth } from "@/constants/breakpoints";
 import "react-native-reanimated";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
@@ -23,6 +23,11 @@ function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useAuth();
+  const { width } = useWindowDimensions();
+  const railW = getWebSidebarWidth(width);
+  const wideRail = railW >= 72;
+  const hit = wideRail ? 48 : 44;
+  const iconSz = wideRail ? 24 : 22;
 
   const navItems = [
     { icon: BookOpen,        path: "/(tabs)/binder",  label: "Binder" },
@@ -33,26 +38,54 @@ function Sidebar() {
   ];
 
   return (
-    <View style={{ width: 64, backgroundColor: "#020617", borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.05)", alignItems: "center", paddingTop: 32, gap: 24 }}>
-      <View style={{ width: 32, height: 32, backgroundColor: KadoColors.umber, borderRadius: 8, marginBottom: 16 }} />
-      
+    <View
+      style={{
+        width: railW,
+        backgroundColor: "#020617",
+        borderRightWidth: 1,
+        borderRightColor: "rgba(255,255,255,0.05)",
+        alignItems: "center",
+        paddingTop: wideRail ? 28 : 32,
+        gap: wideRail ? 20 : 24,
+      }}
+    >
+      <View
+        style={{
+          width: wideRail ? 36 : 32,
+          height: wideRail ? 36 : 32,
+          backgroundColor: KadoColors.umber,
+          borderRadius: wideRail ? 10 : 8,
+          marginBottom: wideRail ? 12 : 16,
+        }}
+      />
+
       {navItems.map((item) => {
         const isActive = pathname === item.path || (item.path === "/(tabs)" && pathname === "/");
         return (
           <Pressable
             key={item.path}
+            accessibilityRole="button"
+            accessibilityLabel={item.label}
             onPress={() => router.push(item.path as any)}
-            style={{
-              width: 44,
-              height: 44,
+            // @ts-expect-error RN Web: native tooltip
+            title={Platform.OS === "web" ? item.label : undefined}
+            style={({ pressed, hovered }) => ({
+              width: hit,
+              height: hit,
               borderRadius: 12,
-              backgroundColor: isActive ? "rgba(199, 167, 123, 0.1)" : "transparent",
+              backgroundColor: isActive
+                ? "rgba(199, 167, 123, 0.12)"
+                : hovered && Platform.OS === "web"
+                  ? "rgba(255, 255, 255, 0.06)"
+                  : "transparent",
+              opacity: pressed ? 0.85 : 1,
               alignItems: "center",
               justifyContent: "center",
-            }}
+              ...(Platform.OS === "web" ? { cursor: "pointer" as const } : {}),
+            })}
           >
             <item.icon
-              size={22}
+              size={iconSz}
               color={isActive ? KadoColors.umber : KadoColors.slateText}
               strokeWidth={isActive ? 2.5 : 2}
             />
@@ -63,10 +96,25 @@ function Sidebar() {
       <View style={{ flex: 1 }} />
 
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Sign out"
+        // @ts-expect-error RN Web: native tooltip
+        title={Platform.OS === "web" ? "Sign out" : undefined}
         onPress={() => signOut()}
-        style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", marginBottom: 24 }}
+        style={({ hovered, pressed }) => ({
+          width: hit,
+          height: hit,
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: wideRail ? 20 : 24,
+          borderRadius: 12,
+          backgroundColor:
+            hovered && Platform.OS === "web" ? "rgba(251, 113, 133, 0.12)" : "transparent",
+          opacity: pressed ? 0.85 : 1,
+          ...(Platform.OS === "web" ? { cursor: "pointer" as const } : {}),
+        })}
       >
-        <LogOut size={20} color={KadoColors.slateText} />
+        <LogOut size={wideRail ? 22 : 20} color={KadoColors.slateText} />
       </Pressable>
     </View>
   );
