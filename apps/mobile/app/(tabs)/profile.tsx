@@ -56,20 +56,13 @@ function renderIcon(Icon: React.ComponentType<any>, props: Record<string, unknow
 }
 
 function LoadingState({ label }: { label: string }) {
-  const { isWeb, isDesktop, maxNarrowColumnWidth } = useResponsiveLayout();
-  const webColumnStyle =
-    isWeb && isDesktop
-      ? { width: "100%" as const, maxWidth: maxNarrowColumnWidth, alignSelf: "center" as const }
-      : isWeb
-        ? { width: "100%" as const, maxWidth: 480, alignSelf: "center" as const }
-        : null;
   return (
     <SafeAreaView
-      style={[{ flex: 1, backgroundColor: KadoColors.midnight }, webColumnStyle]}
-      edges={["top"]}
+      style={{ flex: 1, width: "100%", minWidth: 0, backgroundColor: KadoColors.midnight }}
+      edges={["top", "bottom"]}
     >
       <View className="flex-1 items-center justify-center px-6">
-        <View className="rounded-3xl border border-white/10 bg-navy/60 px-6 py-5">
+        <View className="w-full max-w-md rounded-3xl border border-white/10 bg-navy/60 px-6 py-5">
           <ActivityIndicator size="large" color={KadoColors.umber} />
           <Text className="mt-4 text-center text-sm font-medium text-light-slate">
             {label}
@@ -133,25 +126,35 @@ function SignedOutState({
   authError: string | null;
   onOAuthPress: (provider: AuthProvider) => void;
 }) {
-  const { isWeb, isDesktop, maxNarrowColumnWidth } = useResponsiveLayout();
-  const webColumnStyle =
-    isWeb && isDesktop
-      ? { width: "100%" as const, maxWidth: maxNarrowColumnWidth, alignSelf: "center" as const }
-      : isWeb
-        ? { width: "100%" as const, maxWidth: 480, alignSelf: "center" as const }
-        : null;
+  const { isWeb, isDesktop, maxAuthPanelWidth } = useResponsiveLayout();
   return (
     <SafeAreaView
-      style={[{ flex: 1, backgroundColor: KadoColors.midnight }, webColumnStyle]}
-      edges={["top"]}
+      style={{ flex: 1, width: "100%", minWidth: 0, backgroundColor: KadoColors.midnight }}
+      edges={["top", "bottom"]}
     >
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
+        style={isWeb ? { minHeight: 0 } : undefined}
+        contentContainerStyle={{
+          flexGrow: 1,
+          width: "100%",
+          paddingBottom: 40,
+          paddingTop: isDesktop ? 16 : 8,
+        }}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View className="flex-1 justify-center px-5 py-6">
-          <View className="overflow-hidden rounded-[32px] border border-white/10 bg-navy/90">
+        <View
+          className={`flex-1 justify-center ${isDesktop ? "px-6 py-8" : "px-4 py-5"}`}
+          style={
+            isWeb
+              ? { width: "100%", maxWidth: maxAuthPanelWidth, alignSelf: "center" }
+              : { width: "100%" }
+          }
+        >
+          <View
+            className={`w-full overflow-hidden border border-white/10 bg-navy/90 ${isDesktop ? "rounded-[32px]" : "rounded-3xl"}`}
+          >
             <View
               className="absolute inset-x-0 top-0 h-1"
               style={{
@@ -187,7 +190,7 @@ function SignedOutState({
                   y="0"
                   width="100%"
                   height="100%"
-                  rx="32"
+                  rx={isDesktop ? 32 : 24}
                   fill="url(#signed-out-auth-bg)"
                 />
                 <Circle cx="80%" cy="16%" r="88" fill="#c7a77b" fillOpacity="0.1" />
@@ -195,10 +198,10 @@ function SignedOutState({
               </Svg>
             </View>
 
-            <View className="relative z-10 px-6 py-7">
+            <View className={`relative z-10 ${isDesktop ? "px-8 py-8" : "px-5 py-6"}`}>
               <View className="items-center">
                 <View
-                  className="mb-5 h-16 w-16 items-center justify-center rounded-[22px] border"
+                  className={`mb-5 items-center justify-center rounded-[22px] border ${isDesktop ? "h-16 w-16" : "h-14 w-14"}`}
                   style={{
                     backgroundColor: "rgba(199,167,123,0.12)",
                     borderColor: "rgba(199,167,123,0.28)",
@@ -210,33 +213,41 @@ function SignedOutState({
                   }}
                 >
                   {renderIcon(Scan, {
-                    size: 28,
+                    size: isDesktop ? 28 : 26,
                     color: KadoColors.umber,
                     strokeWidth: 2.1,
                   })}
                 </View>
 
-                <Text className="text-center text-[30px] font-bold tracking-tight text-light-slate">
+                <Text
+                  className={`text-center font-bold tracking-tight text-light-slate ${isDesktop ? "text-[30px]" : "text-[26px]"}`}
+                >
                   Join the Hunt
                 </Text>
-                <Text className="mt-2 max-w-[280px] text-center text-sm leading-6 text-slate-text">
+                <Text
+                  className={`mt-2 text-center text-sm leading-6 text-slate-text ${isDesktop ? "max-w-md px-1" : "max-w-[300px] px-1"}`}
+                >
                   Sign in to sync your binder, lock in your hunter identity, and
                   keep scans available across every device.
                 </Text>
               </View>
 
-              <View className="mt-7 overflow-hidden rounded-[28px] border border-white/10 bg-midnight/60 p-4">
-                <View className="flex-row items-center justify-between">
-                  <View>
+              <View
+                className={`mt-6 overflow-hidden rounded-3xl border border-white/10 bg-midnight/60 ${isDesktop ? "p-5" : "p-4"}`}
+              >
+                <View className="flex-row items-center justify-between gap-3">
+                  <View className="min-w-0 flex-1">
                     <Text className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">
                       Hunter Net
                     </Text>
-                    <Text className="mt-1 text-2xl font-black italic tracking-[0.18em] text-white">
+                    <Text
+                      className={`mt-1 font-black italic tracking-[0.18em] text-white ${isDesktop ? "text-2xl" : "text-xl"}`}
+                    >
                       HUNTER
                     </Text>
                     <View className="mt-1 h-[3px] w-[92px] rounded-full bg-umber" />
                   </View>
-                  <View className="h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+                  <View className="h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
                     {renderIcon(ShieldCheck, {
                       size: 18,
                       color: KadoColors.umber,

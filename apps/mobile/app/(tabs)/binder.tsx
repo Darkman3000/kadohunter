@@ -30,6 +30,7 @@ import {
   ChevronDown,
   Maximize,
   SlidersHorizontal,
+  Upload,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
@@ -53,6 +54,7 @@ const CheckSquareIcon = CheckSquare as React.ComponentType<any>;
 const ChevronDownIcon = ChevronDown as React.ComponentType<any>;
 const MaximizeIcon = Maximize as React.ComponentType<any>;
 const SlidersHorizontalIcon = SlidersHorizontal as React.ComponentType<any>;
+const UploadIcon = Upload as React.ComponentType<any>;
 
 const GRID_PADDING = 16;
 const CARD_GAP = 12;
@@ -308,32 +310,21 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
   }, [handleCardPress, viewMode, cardWidth, numColumns]);
 
   const renderEmptyState = useCallback(() => {
-    if (!currentUser?._id) {
-      return (
-        <View className="flex-1 items-center justify-center px-6 pt-16">
-          <View className="w-24 h-24 rounded-full border border-white/10 bg-navy/60 items-center justify-center mb-5">
-            <BookOpenIcon size={38} color={KadoColors.umber} strokeWidth={1.6} />
-          </View>
-          <Text className="text-light-slate text-xl font-bold mb-2 text-center">Binder ready</Text>
-          <Text className="text-slate-text text-sm text-center leading-6 max-w-[280px]">
-            Your collection appears here once your profile is linked to the server. Check the notice above if this takes
-            too long.
-          </Text>
-        </View>
-      );
-    }
-    if (cards.length === 0) {
+    if (!currentUser?._id || cards.length === 0) {
       return (
         <View className="flex-1 items-center justify-center px-6 pt-20">
           <View className="w-24 h-24 rounded-full border border-white/10 bg-navy/60 items-center justify-center mb-5 relative overflow-hidden">
             <View className="absolute inset-0 bg-umber/5" />
             <BookOpenIcon size={38} color={KadoColors.umber} strokeWidth={1.6} />
           </View>
-          <Text className="text-light-slate text-2xl font-bold mb-2 text-center">Your binder is empty</Text>
-          <Text className="text-slate-text text-sm text-center leading-6 max-w-[260px] mb-7">The journey of a thousand cards begins with a single scan.</Text>
+          <Text className="text-light-slate text-2xl font-bold mb-2 text-center">Add your first card</Text>
+          <Text className="text-slate-text text-sm text-center leading-6 max-w-[280px] mb-7">
+            Scan with your camera or upload a photo to add a card to your binder and start tracking value.
+          </Text>
           <Pressable onPress={() => router.push("/")} className="px-7 py-3.5 rounded-2xl bg-umber flex-row items-center gap-2 active:scale-95">
             <ScanIcon size={18} color={KadoColors.midnight} />
-            <Text className="text-midnight font-bold text-sm">Start Scanning</Text>
+            <UploadIcon size={18} color={KadoColors.midnight} />
+            <Text className="text-midnight font-bold text-sm">Scan or upload</Text>
           </Pressable>
         </View>
       );
@@ -396,21 +387,21 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
             </View>
           ) : (
             <View>
-              <Text className="text-amber-100/90 text-xs leading-5 mb-2">
+              <Text className="text-amber-100/90 text-xs leading-5 mb-3">
                 Could not verify your session with the backend. In Clerk, create a JWT template named{" "}
                 <Text className="font-mono text-white">convex</Text>, ensure Convex auth is configured, clear site data for
                 localhost if needed, then sign out and sign in again.
               </Text>
-              <View className="flex-row flex-wrap gap-2">
+              <View className="flex-row gap-2 w-full">
                 <Pressable
                   onPress={() => onRetry()}
-                  className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/15 active:opacity-80"
+                  className="flex-1 min-h-[40px] px-3 rounded-lg bg-white/10 border border-white/15 items-center justify-center active:opacity-80"
                 >
                   <Text className="text-light-slate text-xs font-bold">Retry</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => void signOut().then(() => router.push("/profile"))}
-                  className="px-3 py-1.5 rounded-lg bg-umber active:opacity-90"
+                  className="flex-1 min-h-[40px] px-3 rounded-lg bg-umber items-center justify-center active:opacity-90"
                 >
                   <Text className="text-midnight text-xs font-bold">Sign out</Text>
                 </Pressable>
@@ -421,26 +412,24 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
       ) : null}
       <View className="px-5 pt-6 pb-4">
           <View className="mb-6">
-            <View className="bg-navy/40 border border-white/5 rounded-3xl p-6 shadow-soft-lg flex-col gap-4">
-                <View className="flex-row justify-between items-start">
-                    <View>
-                        <Text className="text-slate-text text-xs font-bold uppercase tracking-wider mb-1">Portfolio Value</Text>
-                        <Text className="text-4xl font-bold text-light-slate tracking-tight font-mono">{formatUsd(portfolioStats.totalValue)}</Text>
-                    </View>
+            <View className="bg-navy/40 border border-white/5 rounded-3xl p-6 shadow-soft-lg flex-col gap-4 overflow-hidden">
+                <View>
+                    <Text className="text-slate-text text-xs font-bold uppercase tracking-wider mb-1">Portfolio Value</Text>
+                    <Text className="text-4xl font-bold text-light-slate tracking-tight font-mono">{formatUsd(portfolioStats.totalValue)}</Text>
                 </View>
-                
-                <View className="h-[1px] w-full bg-white/5"></View>
 
-                <View className="flex-row items-center gap-6">
-                    <View>
+                <View className="h-px self-stretch bg-white/5" />
+
+                <View className="flex-row items-stretch">
+                    <View className="flex-1 min-w-0 pr-3">
                         <Text className="text-slate-text text-[10px] font-bold uppercase tracking-wider mb-1">7D Change</Text>
-                        <View className="flex-row items-center gap-1.5">
+                        <View className="flex-row items-center gap-1.5 flex-wrap">
                             <TrendingUp size={16} color="#4ade80" />
                             <Text className="text-lg font-bold font-mono text-emerald-400">+$124.50</Text>
                         </View>
                     </View>
-                    <View className="w-[1px] h-8 bg-white/10"></View>
-                    <View>
+                    <View className="w-px self-stretch bg-white/10" />
+                    <View className="flex-1 min-w-0 pl-3">
                         <Text className="text-slate-text text-[10px] font-bold uppercase tracking-wider mb-1">Collection</Text>
                         <Text className="text-lg font-bold font-mono text-white">{cards.length}</Text>
                     </View>

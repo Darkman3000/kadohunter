@@ -13,6 +13,8 @@ export function useResponsiveLayout() {
     const availableWidth = Math.max(0, width - aside);
     const maxPageColumnWidth = Math.min(1100, availableWidth);
     const maxNarrowColumnWidth = Math.min(480, availableWidth);
+    /** Sign-in / hero cards: a bit wider than narrow columns on desktop, still capped to the main pane. */
+    const maxAuthPanelWidth = Math.min(520, availableWidth);
 
     return {
         width,
@@ -21,5 +23,6 @@ export function useResponsiveLayout() {
         availableWidth,
         maxPageColumnWidth,
         maxNarrowColumnWidth,
+        maxAuthPanelWidth,
     };
 }

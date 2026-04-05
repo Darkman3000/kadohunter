@@ -5,6 +5,22 @@
 @layer base {
   :root {
     --shimmer-color: rgba(255, 255, 255, 0.08); /* Reduced for consistency */
+    /* Matches app shell in `app/_layout.tsx` — avoids default white gutters on web */
+    --app-chrome-bg: #020617;
+  }
+
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+    background-color: var(--app-chrome-bg);
+  }
+
+  /* Expo / RN Web mount — fill viewport so letterboxing isn’t browser white */
+  body > #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background-color: var(--app-chrome-bg);
   }
 }
 

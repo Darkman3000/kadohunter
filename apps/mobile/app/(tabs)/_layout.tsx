@@ -53,7 +53,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        sceneStyle: { flex: 1, minWidth: 0 },
+        sceneStyle: { flex: 1, minWidth: 0, backgroundColor: KadoColors.midnight },
         // Hide bottom tabs on desktop web — sidebar handles navigation there
         tabBarStyle: isDesktop
           ? { display: "none" }

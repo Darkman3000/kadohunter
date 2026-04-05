@@ -37,26 +37,28 @@ export function ProfileFriends({
 }) {
   return (
     <View className={`${isDesktop ? 'px-10' : 'px-5'} mt-2`}>
-      {/* Add Friend Input */}
-      <View className="bg-navy/40 border border-white/10 p-5 rounded-3xl mb-8 flex-row gap-3 items-center">
-        <View className="flex-1">
-          <Text className="text-[10px] font-bold text-slate-text uppercase tracking-widest ml-3 mb-2">Hunter Tag Lookup</Text>
+      {/* Add Friend Input — label full width; input + action share one row so heights align */}
+      <View className="bg-navy/40 border border-white/10 p-5 rounded-3xl mb-8">
+        <Text className="text-[10px] font-bold text-slate-text uppercase tracking-widest ml-1 mb-3">
+          Hunter Tag Lookup
+        </Text>
+        <View className="flex-row gap-3 items-center">
           <TextInput
             placeholder="e.g. KDO-XXXX"
             placeholderTextColor="rgba(255,255,255,0.2)"
             value={friendQuery}
             onChangeText={setFriendQuery}
             autoCapitalize="characters"
-            className="bg-midnight/60 border border-white/5 rounded-2xl h-14 px-5 text-white font-bold"
+            className="flex-1 min-w-0 bg-midnight/60 border border-white/5 rounded-2xl h-14 px-5 text-white font-bold text-base"
           />
+          <Pressable
+            onPress={onAddFriend}
+            disabled={isAddingFriend || !friendQuery.trim()}
+            className={`h-14 w-14 shrink-0 rounded-2xl items-center justify-center bg-amber-500 shadow-lg shadow-amber-500/20 active:scale-95 ${(!friendQuery.trim() || isAddingFriend) ? "opacity-50" : ""}`}
+          >
+            {isAddingFriend ? <ActivityIndicator size="small" color="#050e1c" /> : <Plus size={22} color="#050e1c" strokeWidth={2.5} />}
+          </Pressable>
         </View>
-        <Pressable
-          onPress={onAddFriend}
-          disabled={isAddingFriend || !friendQuery.trim()}
-          className={`w-14 h-14 rounded-2xl items-center justify-center bg-amber-500 shadow-lg shadow-amber-500/20 active:scale-95 ${(!friendQuery.trim() || isAddingFriend) ? 'opacity-50' : ''}`}
-        >
-          {isAddingFriend ? <ActivityIndicator size="small" color="#050e1c" /> : <Plus size={24} color="#050e1c" />}
-        </Pressable>
       </View>
 
       {/* Pending Requests */}
