@@ -17,6 +17,7 @@ import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { PageTabBar } from "@/components/PageTabBar";
 import {
   BarChart3,
   TrendingUp,
@@ -82,7 +83,7 @@ function MarketCardRow({ card, toggleWishlist, router }: any) {
   );
 }
 
-function MarketTab({ dashboardCards, tickerData, lastUpdatedLabel, isFeedRefreshing, feedConfig }: any) {
+function MarketTab({ dashboardCards, tickerData, lastUpdatedLabel, isFeedRefreshing, feedConfig, isDesktop }: any) {
     const toggleWishlist = useMutation(api.wishlists.toggleWishlistItem);
     const router = useRouter();
 
@@ -96,7 +97,7 @@ function MarketTab({ dashboardCards, tickerData, lastUpdatedLabel, isFeedRefresh
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 20, gap: 24 }}
             >
-              {[...tickerData, ...tickerData].map((item, i) => (
+              {[...tickerData, ...tickerData].map((item: any, i: number) => (
                 <View key={`ticker-${i}`} className="flex-row items-center gap-2">
                   <Text className="text-[11px] font-bold text-white/70 uppercase">
                     {item.cardName}
@@ -113,8 +114,8 @@ function MarketTab({ dashboardCards, tickerData, lastUpdatedLabel, isFeedRefresh
           </View>
         )}
 
-        <View className={`px-5`}>
-            <View className="flex-row items-center gap-2 mb-8">
+        <View style={{ paddingHorizontal: isDesktop ? 40 : 20 }}>
+            <View className="flex-row items-center gap-2 mb-6">
               <View className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
               <Text className="text-sm text-slate-400">
                 Live Global Index • {lastUpdatedLabel}
@@ -124,7 +125,7 @@ function MarketTab({ dashboardCards, tickerData, lastUpdatedLabel, isFeedRefresh
               )}
             </View>
 
-            {/* Card List */}
+            {/* Card list — 2-column grid on desktop */}
             {dashboardCards === undefined ? (
               <View className="py-12 items-center">
                 <ActivityIndicator size="large" color={KadoColors.umber} />
@@ -133,8 +134,16 @@ function MarketTab({ dashboardCards, tickerData, lastUpdatedLabel, isFeedRefresh
               <View className="py-12 items-center bg-navy/40 rounded-3xl border border-white/10">
                 <Text className="text-light-slate text-base font-bold">No Market Data Yet</Text>
               </View>
+            ) : isDesktop ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2 }}>
+                {dashboardCards.map((card: any) => (
+                  <View key={`${card.cardId}-${card.gameCode}`} style={{ width: "50%" }}>
+                    <MarketCardRow card={card} toggleWishlist={toggleWishlist} router={router} />
+                  </View>
+                ))}
+              </View>
             ) : (
-              <View className="gap-0">
+              <View>
                 {dashboardCards.map((card: any) => (
                     <MarketCardRow key={`${card.cardId}-${card.gameCode}`} card={card} toggleWishlist={toggleWishlist} router={router} />
                 ))}
@@ -202,25 +211,17 @@ export default function HunterNetScreen() {
           </Text>
         </View>
 
-        {/* Navigation Pills */}
-        <View className={`sticky top-0 z-10 pt-2 pb-6 ${isDesktop ? 'px-10' : 'px-5'}`}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
-            {HUNTER_NET_TABS.map((tab) => {
-              const isActive = tab === activeTab;
-              return (
-                <Pressable
-                  key={tab}
-                  onPress={() => {
-                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setActiveTab(tab);
-                  }}
-                  className={`px-6 py-2.5 rounded-full border transition-all mr-3 ${isActive ? 'bg-amber-500 border-amber-500 shadow-md' : 'bg-navy/40 border-white/10'}`}
-                >
-                  <Text className={`text-xs font-bold ${isActive ? 'text-midnight' : 'text-slate-500'}`}>{tab}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+        {/* Navigation Tab Bar */}
+        <View className={`${isDesktop ? 'px-10' : 'px-5'} sticky top-0 z-10 pt-2`}>
+          <PageTabBar
+            tabs={HUNTER_NET_TABS}
+            activeTab={activeTab}
+            onTabChange={(t) => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveTab(t as HunterNetTab);
+            }}
+            isDesktop={isDesktop}
+          />
         </View>
 
         {/* Pulse View */}
@@ -345,6 +346,7 @@ export default function HunterNetScreen() {
             lastUpdatedLabel={lastUpdatedLabel}
             isFeedRefreshing={isFeedRefreshing}
             feedConfig={feedConfig}
+            isDesktop={isDesktop}
           />
         )}
 

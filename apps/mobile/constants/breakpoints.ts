@@ -15,6 +15,8 @@ export const BREAKPOINTS = {
 export const LAYOUT = {
     SIDEBAR_WIDTH: 64,
     SIDEBAR_WIDTH_WIDE: 80,
+    /** Full labeled sidebar on XL desktop */
+    SIDEBAR_WIDTH_EXPANDED: 200,
 } as const;
 
 /** Sidebar width for layout math (binder grid, max columns). Native → 0. */
@@ -22,5 +24,6 @@ export function getWebSidebarWidth(windowWidth: number): number {
     if (Platform.OS !== "web" || windowWidth < BREAKPOINTS.DESKTOP) {
         return 0;
     }
-    return windowWidth >= BREAKPOINTS.LARGE_DESKTOP ? LAYOUT.SIDEBAR_WIDTH_WIDE : LAYOUT.SIDEBAR_WIDTH;
+    if (windowWidth >= BREAKPOINTS.LARGE_DESKTOP) return LAYOUT.SIDEBAR_WIDTH_EXPANDED;
+    return LAYOUT.SIDEBAR_WIDTH;
 }

@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
+  Share,
   Text,
   TextInput,
   View,
@@ -41,6 +44,7 @@ import { BREAKPOINTS, getWebSidebarWidth } from "@/constants/breakpoints";
 import { getGameLabel } from "@/utils/gameLabels";
 import { getGameTone, getRarityBorderColor } from "@/utils/gameStyles";
 import { api } from "../../../../convex/_generated/api";
+import { DesktopDropdown } from "@/components/DesktopDropdown";
 
 const ArrowUpDownIcon = ArrowUpDown as React.ComponentType<any>;
 const BookOpenIcon = BookOpen as React.ComponentType<any>;
@@ -58,10 +62,10 @@ const SlidersHorizontalIcon = SlidersHorizontal as React.ComponentType<any>;
 const UploadIcon = Upload as React.ComponentType<any>;
 const ExternalLinkIcon = ExternalLink as React.ComponentType<any>;
 
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+
 const GRID_PADDING = 16;
 const CARD_GAP = 12;
-
-import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 function useGridLayout() {
   const { isDesktop, availableWidth: rawAvailableWidth } = useResponsiveLayout();
@@ -150,7 +154,6 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [showFilters, setShowFilters] = useState(false);
   const [linkWaitExpired, setLinkWaitExpired] = useState(false);
 
   const storeUserMutation = useMutation(api.users.storeUser);
@@ -189,8 +192,16 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
     return Array.isArray(rawScans) ? rawScans.map(mapScanToCard) : [];
   }, [currentUser?._id, rawScans]);
 
+  const gameFilterOptions = useMemo(() => {
+    const codes = [...new Set(cards.map((c) => c.game).filter(Boolean))] as string[];
+    return codes.sort();
+  }, [cards]);
+
   const filteredCards = useMemo(() => {
     let result = [...cards];
+    if (activeTab !== "All") {
+      result = result.filter((c) => c.game === activeTab);
+    }
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       result = result.filter(c => c.name.toLowerCase().includes(q) || c.set.toLowerCase().includes(q) || c.rarity.toLowerCase().includes(q));
@@ -201,7 +212,35 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
       return new Date(right.dateAdded).getTime() - new Date(left.dateAdded).getTime();
     });
     return result;
-  }, [cards, searchQuery, sortBy]);
+  }, [cards, searchQuery, sortBy, activeTab]);
+
+  const exportBinderCsv = useCallback(async () => {
+    if (filteredCards.length === 0) {
+      Alert.alert("Nothing to export", "Add cards or adjust filters first.");
+      return;
+    }
+    const header = "Name,Set,Number,Rarity,Price USD,Condition,Finish,Game\n";
+    const rows = filteredCards.map((c) =>
+      [c.name, c.set, c.number, c.rarity, String(c.price), c.condition ?? "", c.finish ?? "", c.game]
+        .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+        .join(",")
+    );
+    const csv = header + rows.join("\n");
+    if (Platform.OS === "web") {
+      try {
+        await navigator.clipboard.writeText(csv);
+        Alert.alert("Copied", "Binder CSV copied to your clipboard.");
+      } catch {
+        Alert.alert("Export", "Could not copy automatically. Select the text from a desktop browser with clipboard permission.");
+      }
+    } else {
+      try {
+        await Share.share({ message: csv, title: "My Kado Binder" });
+      } catch {
+        Alert.alert("Export", "Sharing is not available on this device.");
+      }
+    }
+  }, [filteredCards]);
 
   const portfolioStats = useMemo(() => {
     const totalValue = cards.reduce((sum, card) => sum + (card.price * (card.quantity || 1)), 0);
@@ -440,9 +479,17 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                         <Pressable onPress={() => router.push("/")} className="px-5 py-2.5 rounded-xl bg-[#c7a77b] flex-row items-center justify-center gap-2 active:scale-95 shadow-lg shadow-black/20">
                             <MaximizeIcon size={16} color="#020617" />
                             <UploadIcon size={16} color="#020617" />
-                            <Text className="text-[#020617] font-bold text-sm">Scan or uload</Text>
+                            <Text className="text-[#020617] font-bold text-sm">Scan or upload</Text>
                         </Pressable>
-                        <Pressable className="flex-row items-center gap-1 opacity-90 pl-1">
+                        <Pressable
+                          onPress={() =>
+                            Alert.alert(
+                              "Import collection",
+                              "Bulk import from spreadsheets and other apps is on the roadmap. For now, use Scan or upload to add cards one at a time or in batches from photos."
+                            )
+                          }
+                          className="flex-row items-center gap-1 opacity-90 pl-1"
+                        >
                             <Text className="text-white font-medium text-[13px] tracking-wide">Import collection</Text>
                             <ChevronDownIcon size={14} color="#ffffff" />
                         </Pressable>
@@ -451,48 +498,164 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
             </View>
           )}
 
-          <View className="mb-4">
-              <Pressable className="flex-row items-center justify-between w-full px-4 py-3 bg-navy/20 border border-white/5 rounded-xl shadow-inner active:scale-[0.98]">
-                  <View className="flex-row items-center gap-2">
-                      <BookOpenIcon size={16} color={KadoColors.slateText} />
-                      <Text className="text-white font-bold text-sm">All Cards</Text>
-                  </View>
-                  <ChevronDownIcon size={16} color={KadoColors.slateText} />
-              </Pressable>
-          </View>
+          {/* ── Toolbar row ── */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
 
-          <View className="flex-row items-center gap-3 mb-4">
-              <View className="flex-1 relative flex-row items-center">
-                  <View className="absolute left-3 z-10">
-                      <SearchIcon size={16} color={KadoColors.slateText} />
-                  </View>
-                  <TextInput 
-                    placeholder="Search binder..." 
-                    placeholderTextColor="rgba(136,146,176,0.5)" 
-                    className="flex-1 bg-navy/40 border border-white/5 rounded-xl py-3 pl-10 pr-[120px] text-sm text-light-slate h-[46px]"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
-                  <View className="absolute right-2 z-10">
-                      <Pressable className="flex-row items-center gap-2 px-3 py-1.5 rounded-lg active:bg-white/10">
-                          <SlidersHorizontalIcon size={14} color={KadoColors.lightSlate} />
-                          <Text className="text-sm font-bold text-light-slate">Filter & Sort</Text>
-                      </Pressable>
-                  </View>
-              </View>
-              
-              <View className="flex-row items-center bg-navy/40 border border-white/5 rounded-xl p-1 h-[46px]">
-                  <Pressable onPress={() => setViewMode('list')} className={`w-10 h-full rounded-lg items-center justify-center ${viewMode === 'list' ? 'bg-white/10' : ''}`}>
-                      <ListIcon size={18} color={viewMode === 'list' ? KadoColors.lightSlate : KadoColors.slateText} />
-                  </Pressable>
-                  <Pressable onPress={() => setViewMode('grid')} className={`w-10 h-full rounded-lg items-center justify-center ${viewMode === 'grid' ? 'bg-white/10' : ''}`}>
-                      <BookOpenIcon size={18} color={viewMode === 'grid' ? KadoColors.lightSlate : KadoColors.slateText} />
-                  </Pressable>
-              </View>
+            {/* Collection filter dropdown */}
+            <DesktopDropdown
+              title="Collection"
+              subtitle="Show cards from one game or all"
+              selectedId={activeTab}
+              onSelect={(id) => setActiveTab(id)}
+              panelWidth={260}
+              options={[
+                { id: "All", label: "All cards", sub: "Every game in your binder" },
+                ...gameFilterOptions.map((code) => ({ id: code, label: getGameLabel(code) })),
+              ]}
+              trigger={
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingHorizontal: 12,
+                    height: 38,
+                    backgroundColor: "rgba(10,15,28,0.5)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.08)",
+                    borderRadius: 10,
+                    ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
+                  }}
+                >
+                  <BookOpenIcon size={14} color={KadoColors.slateText} />
+                  <Text style={{ color: "#ccd6f6", fontSize: 13, fontWeight: "600" }}>
+                    {activeTab === "All" ? "All Cards" : getGameLabel(activeTab)}
+                  </Text>
+                  <ChevronDownIcon size={13} color={KadoColors.slateText} />
+                </View>
+              }
+            />
 
-              <Pressable className="bg-navy/40 border border-white/5 w-[46px] h-[46px] rounded-xl items-center justify-center active:scale-95">
-                  <ExternalLinkIcon size={18} color={KadoColors.slateText} />
-              </Pressable>
+            {/* Sort dropdown */}
+            <DesktopDropdown
+              title="Sort by"
+              selectedId={sortBy}
+              onSelect={(id) => setSortBy(id as SortBy)}
+              panelWidth={220}
+              options={[
+                { id: "dateAdded", label: "Date added", sub: "Newest first" },
+                { id: "name", label: "Name", sub: "A → Z" },
+                { id: "price", label: "Price", sub: "High → low" },
+              ]}
+              trigger={
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingHorizontal: 12,
+                    height: 38,
+                    backgroundColor: "rgba(10,15,28,0.5)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.08)",
+                    borderRadius: 10,
+                    ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
+                  }}
+                >
+                  <SlidersHorizontalIcon size={14} color={KadoColors.slateText} />
+                  <Text style={{ color: "#ccd6f6", fontSize: 13, fontWeight: "600" }}>
+                    {{ dateAdded: "Date added", name: "Name", price: "Price" }[sortBy]}
+                  </Text>
+                  <ChevronDownIcon size={13} color={KadoColors.slateText} />
+                </View>
+              }
+            />
+
+            {/* Search input — grows to fill remaining space */}
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", position: "relative" }}>
+              <View style={{ position: "absolute", left: 10, zIndex: 1 }}>
+                <SearchIcon size={14} color={KadoColors.slateText} />
+              </View>
+              <TextInput
+                placeholder="Search binder…"
+                placeholderTextColor="rgba(136,146,176,0.4)"
+                style={{
+                  flex: 1,
+                  height: 38,
+                  backgroundColor: "rgba(10,15,28,0.5)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.08)",
+                  borderRadius: 10,
+                  paddingLeft: 32,
+                  paddingRight: 12,
+                  fontSize: 13,
+                  color: "#ccd6f6",
+                }}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+
+            {/* View-mode segmented control */}
+            <View
+              style={{
+                flexDirection: "row",
+                backgroundColor: "rgba(10,15,28,0.5)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.08)",
+                borderRadius: 10,
+                height: 38,
+                overflow: "hidden",
+              }}
+            >
+              {(["list", "grid"] as const).map((mode) => (
+                <Pressable
+                  key={mode}
+                  onPress={() => setViewMode(mode)}
+                  style={({ hovered }: any) => ({
+                    width: 36,
+                    height: "100%",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor:
+                      viewMode === mode
+                        ? "rgba(255,255,255,0.1)"
+                        : hovered && Platform.OS === "web"
+                        ? "rgba(255,255,255,0.05)"
+                        : "transparent",
+                    ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
+                  })}
+                >
+                  {mode === "list" ? (
+                    <ListIcon size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} />
+                  ) : (
+                    <LayoutGrid size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} />
+                  )}
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Export */}
+            <Pressable
+              onPress={() => void exportBinderCsv()}
+              accessibilityLabel="Export binder as CSV"
+              style={({ hovered }: any) => ({
+                width: 38,
+                height: 38,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor:
+                  hovered && Platform.OS === "web"
+                    ? "rgba(255,255,255,0.07)"
+                    : "rgba(10,15,28,0.5)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.08)",
+                borderRadius: 10,
+                ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
+              })}
+            >
+              <ExternalLinkIcon size={15} color={KadoColors.slateText} />
+            </Pressable>
           </View>
       </View>
       <View className="flex-1 w-full max-w-[1320px] self-center">
@@ -508,6 +671,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={KadoColors.umber} colors={[KadoColors.umber]} />}
         />
       </View>
+
     </SafeAreaView>
   );
 }

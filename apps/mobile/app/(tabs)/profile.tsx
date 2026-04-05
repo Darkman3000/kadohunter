@@ -16,6 +16,7 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { PageTabBar } from "@/components/PageTabBar";
 import { scanLimits } from "@kado/domain";
 import type { SubscriptionTier } from "@kado/contracts";
 import {
@@ -509,24 +510,16 @@ export default function ProfileScreen() {
         </View>
 
         {/* Sub-tab Navigation */}
-        <View className={`sticky top-0 z-10 pt-2 pb-6 ${isDesktop ? 'px-10' : 'px-5'}`}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
-            {PROFILE_TABS.map((tab) => {
-              const isActive = tab === activeTab;
-              return (
-                <Pressable
-                  key={tab}
-                  onPress={() => {
-                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setActiveTab(tab);
-                  }}
-                  className={`px-6 py-2.5 rounded-full border transition-all mr-3 ${isActive ? 'bg-amber-500 border-amber-500 shadow-md' : 'bg-navy/40 border-white/10'}`}
-                >
-                  <Text className={`text-xs font-bold ${isActive ? 'text-midnight' : 'text-slate-500'}`}>{tab}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+        <View className={`${isDesktop ? 'px-10' : 'px-0'} sticky top-0 z-10 pt-2`}>
+          <PageTabBar
+            tabs={PROFILE_TABS}
+            activeTab={activeTab}
+            onTabChange={(t) => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveTab(t as ProfileTab);
+            }}
+            isDesktop={isDesktop}
+          />
         </View>
 
         {activeTab === "Dashboard" && (

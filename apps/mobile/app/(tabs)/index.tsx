@@ -37,6 +37,7 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
 import { BREAKPOINTS } from "@/constants/breakpoints";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import {
   recognitionService,
   type RecognitionResult,
@@ -120,15 +121,14 @@ const getPermissionErrorMessage = (error: unknown) => {
 export default function ScannerScreen() {
   const router = useRouter();
   const { width: winW } = useWindowDimensions();
+  const { isDesktop, availableWidth } = useResponsiveLayout();
   const { frameWidth, frameHeight } = useMemo(() => {
     const isDesktopWeb = Platform.OS === "web" && winW >= BREAKPOINTS.DESKTOP;
-    const fw = Math.min(
-      winW * (isDesktopWeb ? 0.36 : 0.72),
-      isDesktopWeb ? 460 : 300
-    );
+    const base = isDesktopWeb ? availableWidth : winW;
+    const fw = Math.min(base * (isDesktopWeb ? 0.42 : 0.72), isDesktopWeb ? 480 : 300);
     const fh = fw * 1.25;
     return { frameWidth: fw, frameHeight: fh };
-  }, [winW]);
+  }, [winW, availableWidth]);
   const { viewMode, scanId, sessionId } = useLocalSearchParams();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -511,7 +511,25 @@ export default function ScannerScreen() {
       style={{ flex: 1, backgroundColor: KadoColors.midnight }}
       edges={["top"]}
     >
-      <View className="flex-1 bg-midnight">
+      {isDesktop && (
+        <View
+          style={{
+            paddingHorizontal: 40,
+            paddingTop: 20,
+            paddingBottom: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: "rgba(255,255,255,0.06)",
+          }}
+        >
+          <Text style={{ color: "#475569", fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 2, marginBottom: 4 }}>
+            Scanner
+          </Text>
+          <Text style={{ color: "#ccd6f6", fontSize: 22, fontWeight: "800" }}>Scan Card</Text>
+        </View>
+      )}
+      <View style={{ flex: 1, flexDirection: isDesktop ? "row" : "column" }}>
+        {/* Camera pane */}
+        <View style={{ flex: 1, position: "relative" }}>
         <CameraView
           ref={cameraRef}
           style={{ flex: 1 }}
@@ -629,7 +647,9 @@ export default function ScannerScreen() {
           </View>
         </CameraView>
 
-        {scanResult && (
+        </View>
+
+        {scanResult && !isDesktop && (
           <ScanResultCard
             scanResult={scanResult}
             isSaving={isSaving}
@@ -640,6 +660,29 @@ export default function ScannerScreen() {
             onDismiss={handleDismissResult}
             onSave={handleSaveResult}
           />
+        )}
+
+        {/* Desktop: result panel shown in a right sidebar */}
+        {isDesktop && scanResult && (
+          <View
+            style={{
+              width: 360,
+              borderLeftWidth: 1,
+              borderLeftColor: "rgba(255,255,255,0.07)",
+              backgroundColor: "#0a0f1c",
+            }}
+          >
+            <ScanResultCard
+              scanResult={scanResult}
+              isSaving={isSaving}
+              canSaveToBinder={canSaveToBinder}
+              isSignedIn={isSignedIn ?? false}
+              isAuthLoaded={isAuthLoaded}
+              hasUser={Boolean(currentUser?._id)}
+              onDismiss={handleDismissResult}
+              onSave={handleSaveResult}
+            />
+          </View>
         )}
       </View>
     </SafeAreaView>

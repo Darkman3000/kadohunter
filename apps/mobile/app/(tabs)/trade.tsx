@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,25 +6,26 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  useWindowDimensions,
+  Modal,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import { 
-  Plus, 
-  ArrowLeftRight, 
-  LayoutGrid, 
+import {
+  Plus,
+  ArrowLeftRight,
+  LayoutGrid,
   ShoppingBag,
   Zap,
   History,
   ChevronRight,
-  SlidersHorizontal,
-  TrendingUp,
 } from "lucide-react-native";
+import { useAuth } from "@clerk/clerk-expo";
 import { useQuery, useMutation } from "convex/react";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { KadoColors } from "@/constants/theme";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { FriendPicker, type PickableFriend } from "../../components/FriendPicker";
@@ -86,25 +87,52 @@ export default function TradeScreen() {
 
 function TradeSlot({
   card,
-  onPress,
+  onAdd,
+  onRemoveCard,
   size,
 }: {
   card?: PickableCard;
-  onPress: () => void;
+  onAdd: () => void;
+  onRemoveCard?: () => void;
   size: number;
 }) {
   const h = Math.round(size * 1.4);
+  const handlePress = () => {
+    if (card && onRemoveCard) {
+      Alert.alert(card.cardName, "Remove this card from the trade?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            onRemoveCard();
+          },
+        },
+      ]);
+    } else {
+      onAdd();
+    }
+  };
   return card ? (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       style={{ width: size, height: h, borderRadius: 16, overflow: "hidden", backgroundColor: "#0a0f1c", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" }}
       className="active:opacity-80"
     >
-      <Image source={{ uri: card.imageUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+      {card.imageUrl ? (
+        <Image source={{ uri: card.imageUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+      ) : (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0a0f1c" }}>
+          <Text style={{ color: "#94a3b8", fontSize: 10, fontWeight: "700", textAlign: "center", padding: 4 }} numberOfLines={3}>
+            {card.cardName}
+          </Text>
+        </View>
+      )}
     </Pressable>
   ) : (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       style={{ width: size, height: h, borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed", borderColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" }}
       className="active:bg-white/5"
     >
@@ -114,6 +142,9 @@ function TradeSlot({
 }
 
 function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; isDesktop: boolean }) {
+  const { isSignedIn } = useAuth();
+  const openTheirBinderAfterFriendPick = useRef(false);
+
   const [youValue, setYouValue] = useState(0);
   const [themValue, setThemValue] = useState(0);
   const [isFriendPickerVisible, setIsFriendPickerVisible] = useState(false);
@@ -124,6 +155,8 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
   const [showHistory, setShowHistory] = useState(false);
   const [isCardPickerVisibleForThem, setIsCardPickerVisibleForThem] = useState(false);
 
+  const currentUser = useQuery(api.users.getCurrentUser, isSignedIn ? {} : "skip");
+
   const friendCollection = useQuery(
     api.friends.getFriendCollection,
     selectedFriend ? { friendId: selectedFriend._id } : "skip"
@@ -131,9 +164,10 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
 
   const myBinder = useQuery(api.users.getBinderScans, {});
   const proposeTrade = useMutation(api.trades.proposeTrade);
-  const myTrades = useQuery(api.trades.getMyTrades, {});
+  const myTrades = useQuery(api.trades.getMyTrades, isSignedIn ? {} : "skip");
   const acceptTrade = useMutation(api.trades.acceptTrade);
   const rejectTrade = useMutation(api.trades.rejectTrade);
+  const cancelTrade = useMutation(api.trades.cancelTrade);
 
   const canPropose = selectedFriend !== null && yourCards.length > 0 && theirCards.length > 0;
   const diff = youValue - themValue;
@@ -169,26 +203,119 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
     }
   };
 
+  const priceOf = (c: PickableCard) => c.estimatedPrice ?? c.marketPrice ?? 0;
+
   const addYourCard = (card: PickableCard) => {
-    setYourCards([...yourCards, card]);
-    setYouValue((prev) => prev + (card.marketPrice || 0));
+    if (yourCards.some((c) => c._id === card._id)) {
+      Alert.alert("Already added", "This card is already on your side of the trade.");
+      return;
+    }
+    setYourCards((prev) => [...prev, card]);
+    setYouValue((prev) => prev + priceOf(card));
     setIsBinderPickerVisible(false);
   };
 
   const addTheirCard = (card: PickableCard) => {
-    setTheirCards([...theirCards, card]);
-    setThemValue((prev) => prev + (card.marketPrice || 0));
+    if (theirCards.some((c) => c._id === card._id)) {
+      Alert.alert("Already added", "This card is already on their side of the trade.");
+      return;
+    }
+    setTheirCards((prev) => [...prev, card]);
+    setThemValue((prev) => prev + priceOf(card));
     setIsCardPickerVisibleForThem(false);
   };
 
+  const removeYourCardById = useCallback((scanId: Id<"savedScans">) => {
+    const card = yourCards.find((c) => c._id === scanId);
+    if (!card) return;
+    setYourCards((prev) => prev.filter((c) => c._id !== scanId));
+    setYouValue((v) => v - priceOf(card));
+  }, [yourCards]);
+
+  const removeTheirCardById = useCallback((scanId: Id<"savedScans">) => {
+    const card = theirCards.find((c) => c._id === scanId);
+    if (!card) return;
+    setTheirCards((prev) => prev.filter((c) => c._id !== scanId));
+    setThemValue((v) => v - priceOf(card));
+  }, [theirCards]);
+
+  const openFriendPicker = (openTheirBinderAfter: boolean) => {
+    openTheirBinderAfterFriendPick.current = openTheirBinderAfter;
+    setIsFriendPickerVisible(true);
+  };
+
+  const onFriendSelected = (f: PickableFriend) => {
+    setSelectedFriend(f);
+    setIsFriendPickerVisible(false);
+    if (openTheirBinderAfterFriendPick.current) {
+      openTheirBinderAfterFriendPick.current = false;
+      setIsCardPickerVisibleForThem(true);
+    }
+  };
+
+  const openTheirCardPicker = () => {
+    if (!selectedFriend) {
+      openFriendPicker(true);
+      return;
+    }
+    setIsCardPickerVisibleForThem(true);
+  };
+
+  const handleAcceptTrade = async (tradeId: Id<"trades">) => {
+    try {
+      await acceptTrade({ tradeId });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Trade accepted", "Card ownership has been updated.");
+    } catch (e: unknown) {
+      Alert.alert("Could not accept", e instanceof Error ? e.message : "Try again.");
+    }
+  };
+
+  const handleRejectTrade = async (tradeId: Id<"trades">) => {
+    try {
+      await rejectTrade({ tradeId });
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e: unknown) {
+      Alert.alert("Could not reject", e instanceof Error ? e.message : "Try again.");
+    }
+  };
+
+  const handleCancelTrade = (tradeId: Id<"trades">) => {
+    Alert.alert("Cancel trade offer?", "Your friend will no longer see this proposal.", [
+      { text: "Keep", style: "cancel" },
+      {
+        text: "Cancel offer",
+        style: "destructive",
+        onPress: () => {
+          void cancelTrade({ tradeId })
+            .then(() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            })
+            .catch((e: unknown) => {
+              Alert.alert("Could not cancel", e instanceof Error ? e.message : "Try again.");
+            });
+        },
+      },
+    ]);
+  };
+
   // Card slot sizing: responsive based on available width
-  // Desktop: 2 columns side by side, each column gets ~half. Mobile: single column.
   const isTablet = availableWidth >= 600;
   const cardSlotSize = isDesktop
     ? Math.min(90, Math.floor((availableWidth / 2 - 120) / 3))
     : isTablet
     ? Math.min(80, Math.floor((availableWidth - 160) / 6))
     : Math.min(76, Math.floor((availableWidth - 80) / 3));
+
+  const minSlots = isDesktop || isTablet ? 6 : 4;
+  const yourSlotCount = Math.min(12, Math.max(minSlots, yourCards.length + 1));
+  const theirSlotCount = Math.min(12, Math.max(minSlots, theirCards.length + 1));
+
+  const tradeList = myTrades ?? [];
+  const thumbLeftPct =
+    youValue + themValue <= 0
+      ? 50
+      : Math.min(92, Math.max(8, (youValue / (youValue + themValue)) * 100));
 
   const fairValueBadge = (
     <View
@@ -223,6 +350,20 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
         <View style={{ width: 3, backgroundColor: "#0b0e17" }} />
         <View style={{ flex: 0.55, backgroundColor: "#10b981" }} />
       </View>
+      <View
+        style={{
+          position: "absolute",
+          top: 9,
+          left: `${thumbLeftPct}%`,
+          marginLeft: -7,
+          width: 14,
+          height: 14,
+          borderRadius: 7,
+          backgroundColor: "#fde047",
+          borderWidth: 3,
+          borderColor: "#0b0e17",
+        }}
+      />
       <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 14, paddingTop: 20 }}>
         <Text style={{ fontSize: 9, fontWeight: "900", color: "#ef4444", letterSpacing: 1, textTransform: "uppercase" }}>Under</Text>
         <Text style={{ fontSize: 9, fontWeight: "900", color: "#84cc16", letterSpacing: 1, textTransform: "uppercase" }}>Fair</Text>
@@ -232,16 +373,89 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
   );
 
   const renderCardSlots = (cards: PickableCard[], count: number, isTheir: boolean) =>
-    Array.from({ length: count }).map((_, i) => (
-      <TradeSlot
-        key={i}
-        card={cards[i]}
-        size={cardSlotSize}
-        onPress={() =>
-          isTheir ? setIsCardPickerVisibleForThem(true) : setIsBinderPickerVisible(true)
-        }
-      />
-    ));
+    Array.from({ length: count }).map((_, i) => {
+      const c = cards[i];
+      return (
+        <TradeSlot
+          key={c?._id ?? `empty-${isTheir ? "t" : "y"}-${i}`}
+          card={c}
+          size={cardSlotSize}
+          onAdd={() => (isTheir ? openTheirCardPicker() : setIsBinderPickerVisible(true))}
+          onRemoveCard={
+            c ? () => (isTheir ? removeTheirCardById(c._id) : removeYourCardById(c._id)) : undefined
+          }
+        />
+      );
+    });
+
+  const historyPanel =
+    showHistory && tradeList.length === 0 ? (
+      <View style={{ marginHorizontal: isDesktop || isTablet ? 24 : 16, marginTop: 16, backgroundColor: "#020617", borderRadius: 16, padding: 20, alignItems: "center" }}>
+        <Text style={{ color: "#8892b0", fontSize: 14, textAlign: "center" }}>No trades yet. Propose a trade to see it here.</Text>
+      </View>
+    ) : showHistory ? (
+      <View style={{ marginHorizontal: isDesktop || isTablet ? 24 : 16, marginTop: 16, backgroundColor: "#020617", borderRadius: 16, padding: 16 }}>
+        {tradeList.map((trade) => {
+          const uid = currentUser?._id;
+          const isReceiver = uid !== undefined && trade.receiverId === uid;
+          const isProposer = uid !== undefined && trade.proposerId === uid;
+          const pending = trade.status === "proposed";
+          return (
+            <View
+              key={trade._id}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 10,
+                borderBottomWidth: 1,
+                borderBottomColor: "rgba(255,255,255,0.05)",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>
+                  {trade.proposerName} → {trade.receiverName}
+                </Text>
+                <Text style={{ color: "#8892b0", fontSize: 10, marginTop: 2 }}>
+                  {trade.proposerCards.length} cards ↔ {trade.receiverCards.length} cards
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {trade.status === "proposed" && <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Pending</Text>}
+                {trade.status === "accepted" && <Text style={{ color: "#4ade80", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Accepted</Text>}
+                {trade.status === "rejected" && <Text style={{ color: "#fb7185", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Rejected</Text>}
+                {trade.status === "cancelled" && <Text style={{ color: "#94a3b8", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Cancelled</Text>}
+                {pending && isReceiver && (
+                  <>
+                    <Pressable
+                      onPress={() => void handleAcceptTrade(trade._id)}
+                      style={{ backgroundColor: "#059669", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Accept</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => void handleRejectTrade(trade._id)}
+                      style={{ backgroundColor: "rgba(251,113,133,0.2)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                    >
+                      <Text style={{ color: "#fb7185", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Reject</Text>
+                    </Pressable>
+                  </>
+                )}
+                {pending && isProposer && (
+                  <Pressable
+                    onPress={() => handleCancelTrade(trade._id)}
+                    style={{ backgroundColor: "rgba(255,255,255,0.08)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                  >
+                    <Text style={{ color: "#cbd5e1", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Cancel</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    ) : null;
 
   // ── DESKTOP: side-by-side panes ───────────────────────────────────────────
   if (isDesktop || isTablet) {
@@ -256,12 +470,12 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
                 <Text style={{ fontSize: 11, fontWeight: "900", color: "#8892b0", textTransform: "uppercase", letterSpacing: 2 }}>THEM</Text>
                 {selectedFriend ? (
-                  <Pressable onPress={() => setIsFriendPickerVisible(true)}>
+                  <Pressable onPress={() => openFriendPicker(false)}>
                     <Text style={{ fontSize: 12, fontWeight: "700", color: "#f59e0b" }}>{selectedFriend.name}</Text>
                   </Pressable>
                 ) : (
                   <Pressable
-                    onPress={() => setIsFriendPickerVisible(true)}
+                    onPress={() => openFriendPicker(true)}
                     style={{ backgroundColor: "rgba(245,158,11,0.12)", borderWidth: 1, borderColor: "rgba(245,158,11,0.25)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 }}
                   >
                     <Text style={{ fontSize: 11, fontWeight: "900", color: "#f59e0b", textTransform: "uppercase", letterSpacing: 1 }}>Select Friend</Text>
@@ -269,7 +483,7 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
                 )}
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                {renderCardSlots(theirCards, 6, true)}
+                {renderCardSlots(theirCards, theirSlotCount, true)}
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" }}>
                 <Text style={{ fontSize: 10, fontWeight: "700", color: "#8892b0", textTransform: "uppercase", letterSpacing: 1 }}>Value</Text>
@@ -298,7 +512,7 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
                 </Pressable>
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                {renderCardSlots(yourCards, 6, false)}
+                {renderCardSlots(yourCards, yourSlotCount, false)}
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" }}>
                 <Text style={{ fontSize: 10, fontWeight: "700", color: "#8892b0", textTransform: "uppercase", letterSpacing: 1 }}>Value</Text>
@@ -307,24 +521,7 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
             </View>
           </View>
 
-          {/* History panel */}
-          {showHistory && myTrades && myTrades.length > 0 && (
-            <View style={{ marginHorizontal: 24, marginTop: 16, backgroundColor: "#020617", borderRadius: 16, padding: 16 }}>
-              {myTrades.map((trade) => (
-                <View key={trade._id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{trade.proposerName} → {trade.receiverName}</Text>
-                    <Text style={{ color: "#8892b0", fontSize: 10, marginTop: 2 }}>{trade.proposerCards.length} cards ↔ {trade.receiverCards.length} cards</Text>
-                  </View>
-                  <View>
-                    {trade.status === "proposed" && <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Pending</Text>}
-                    {trade.status === "accepted" && <Text style={{ color: "#4ade80", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Accepted</Text>}
-                    {trade.status === "rejected" && <Text style={{ color: "#fb7185", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Rejected</Text>}
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
+          {historyPanel}
         </ScrollView>
 
         {/* Footer actions */}
@@ -338,7 +535,7 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
               <Text style={{ fontSize: 10, fontWeight: "900", color: "#ccd6f6", textTransform: "uppercase", letterSpacing: 3 }}>My Binder</Text>
             </Pressable>
             <Pressable
-              onPress={() => (!selectedFriend ? setIsFriendPickerVisible(true) : setIsCardPickerVisibleForThem(true))}
+              onPress={() => (!selectedFriend ? openFriendPicker(true) : openTheirCardPicker())}
               style={{ flex: 1, backgroundColor: "#f59e0b", paddingVertical: 14, borderRadius: 12, alignItems: "center" }}
               className="active:scale-95"
             >
@@ -364,9 +561,23 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
           </View>
         </View>
 
-        <FriendPicker isVisible={isFriendPickerVisible} onClose={() => setIsFriendPickerVisible(false)} onSelect={(f) => { setSelectedFriend(f); setIsFriendPickerVisible(false); setIsCardPickerVisibleForThem(true); }} />
-        <CardPicker isVisible={isBinderPickerVisible} onClose={() => setIsBinderPickerVisible(false)} onSelect={addYourCard} title="My Binder" cards={myBinder} />
-        <CardPicker isVisible={isCardPickerVisibleForThem} onClose={() => setIsCardPickerVisibleForThem(false)} onSelect={addTheirCard} title={`${selectedFriend?.name || 'Friend'}'s Binder`} cards={friendCollection} />
+        <FriendPicker isVisible={isFriendPickerVisible} onClose={() => setIsFriendPickerVisible(false)} onSelect={onFriendSelected} />
+        <CardPicker
+          isVisible={isBinderPickerVisible}
+          onClose={() => setIsBinderPickerVisible(false)}
+          onSelect={addYourCard}
+          title="My Binder"
+          cards={myBinder}
+          excludeScanIds={yourCards.map((c) => c._id)}
+        />
+        <CardPicker
+          isVisible={isCardPickerVisibleForThem}
+          onClose={() => setIsCardPickerVisibleForThem(false)}
+          onSelect={addTheirCard}
+          title={`${selectedFriend?.name || "Friend"}'s Binder`}
+          cards={friendCollection}
+          excludeScanIds={theirCards.map((c) => c._id)}
+        />
       </View>
     );
   }
@@ -380,7 +591,7 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <Text style={{ fontSize: 11, fontWeight: "900", color: "#8892b0", textTransform: "uppercase", letterSpacing: 2 }}>THEM</Text>
             <Pressable
-              onPress={() => (!selectedFriend ? setIsFriendPickerVisible(true) : setIsCardPickerVisibleForThem(true))}
+              onPress={() => (!selectedFriend ? openFriendPicker(true) : openTheirCardPicker())}
               style={{ backgroundColor: "rgba(245,158,11,0.12)", borderWidth: 1, borderColor: "rgba(245,158,11,0.25)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 }}
             >
               <Text style={{ fontSize: 11, fontWeight: "900", color: "#f59e0b", textTransform: "uppercase", letterSpacing: 1 }}>
@@ -389,7 +600,7 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
             </Pressable>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {renderCardSlots(theirCards, 4, true)}
+            {renderCardSlots(theirCards, theirSlotCount, true)}
           </View>
           <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 10 }}>
             <Text style={{ fontSize: 18, fontWeight: "900", color: "#fff" }}>${themValue.toFixed(2)}</Text>
@@ -414,31 +625,14 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
             </Pressable>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {renderCardSlots(yourCards, 4, false)}
+            {renderCardSlots(yourCards, yourSlotCount, false)}
           </View>
           <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 10 }}>
             <Text style={{ fontSize: 18, fontWeight: "900", color: "#fff" }}>${youValue.toFixed(2)}</Text>
           </View>
         </View>
 
-        {/* History */}
-        {showHistory && myTrades && myTrades.length > 0 && (
-          <View style={{ backgroundColor: "#020617", borderRadius: 16, padding: 16 }}>
-            {myTrades.map((trade) => (
-              <View key={trade._id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{trade.proposerName} → {trade.receiverName}</Text>
-                  <Text style={{ color: "#8892b0", fontSize: 10, marginTop: 2 }}>{trade.proposerCards.length} cards ↔ {trade.receiverCards.length} cards</Text>
-                </View>
-                <View>
-                  {trade.status === "proposed" && <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Pending</Text>}
-                  {trade.status === "accepted" && <Text style={{ color: "#4ade80", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Accepted</Text>}
-                  {trade.status === "rejected" && <Text style={{ color: "#fb7185", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Rejected</Text>}
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
+        {historyPanel}
       </ScrollView>
 
       {/* Footer */}
@@ -451,7 +645,7 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
             <Text style={{ fontSize: 10, fontWeight: "900", color: "#ccd6f6", textTransform: "uppercase", letterSpacing: 2 }}>My Binder</Text>
           </Pressable>
           <Pressable
-            onPress={() => (!selectedFriend ? setIsFriendPickerVisible(true) : setIsCardPickerVisibleForThem(true))}
+            onPress={() => (!selectedFriend ? openFriendPicker(true) : openTheirCardPicker())}
             style={{ flex: 1, backgroundColor: "#f59e0b", paddingVertical: 14, borderRadius: 12, alignItems: "center" }}
           >
             <Text style={{ fontSize: 10, fontWeight: "900", color: "#1e1302", textTransform: "uppercase", letterSpacing: 2 }}>
@@ -467,6 +661,12 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
             <History size={16} color="#8892b0" />
           </Pressable>
           <Pressable
+            onPress={() => (selectedFriend ? openFriendPicker(false) : openFriendPicker(true))}
+            style={{ width: 48, backgroundColor: "#222736", borderWidth: 1, borderColor: "rgba(255,255,255,0.05)", borderRadius: 12, alignItems: "center", justifyContent: "center", height: 48 }}
+          >
+            <Text style={{ fontSize: 9, fontWeight: "900", color: "#8892b0", textTransform: "uppercase" }}>Friend</Text>
+          </Pressable>
+          <Pressable
             onPress={handleProposeTrade}
             disabled={!canPropose}
             style={{ flex: 1, backgroundColor: canPropose ? "#ea580c" : "#f59e0b", paddingVertical: 14, borderRadius: 12, alignItems: "center", opacity: canPropose ? 1 : 0.7 }}
@@ -476,9 +676,23 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
         </View>
       </View>
 
-      <FriendPicker isVisible={isFriendPickerVisible} onClose={() => setIsFriendPickerVisible(false)} onSelect={(f) => { setSelectedFriend(f); setIsFriendPickerVisible(false); setIsCardPickerVisibleForThem(true); }} />
-      <CardPicker isVisible={isBinderPickerVisible} onClose={() => setIsBinderPickerVisible(false)} onSelect={addYourCard} title="My Binder" cards={myBinder} />
-      <CardPicker isVisible={isCardPickerVisibleForThem} onClose={() => setIsCardPickerVisibleForThem(false)} onSelect={addTheirCard} title={`${selectedFriend?.name || 'Friend'}'s Binder`} cards={friendCollection} />
+      <FriendPicker isVisible={isFriendPickerVisible} onClose={() => setIsFriendPickerVisible(false)} onSelect={onFriendSelected} />
+      <CardPicker
+        isVisible={isBinderPickerVisible}
+        onClose={() => setIsBinderPickerVisible(false)}
+        onSelect={addYourCard}
+        title="My Binder"
+        cards={myBinder}
+        excludeScanIds={yourCards.map((c) => c._id)}
+      />
+      <CardPicker
+        isVisible={isCardPickerVisibleForThem}
+        onClose={() => setIsCardPickerVisibleForThem(false)}
+        onSelect={addTheirCard}
+        title={`${selectedFriend?.name || "Friend"}'s Binder`}
+        cards={friendCollection}
+        excludeScanIds={theirCards.map((c) => c._id)}
+      />
     </View>
   );
 }
@@ -487,10 +701,12 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
 
 function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; availableWidth: number }) {
   const router = useRouter();
+  const [showSessionHistory, setShowSessionHistory] = useState(false);
   const deviceId = "default";
   const activeSession = useQuery(api.sessions.getActiveSession, { deviceId });
   const stagedScans = useQuery(api.users.getStagedScans, { deviceId });
-  
+  const sessionHistory = useQuery(api.sessions.getSessionHistory, {});
+
   const startSession = useMutation(api.sessions.startSession);
   const endSession = useMutation(api.sessions.endSession);
 
@@ -509,9 +725,9 @@ function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; ava
 
   const sessionScans = stagedScans?.filter(s => s.sessionId === activeSession?._id) || [];
   const sessionTotal = sessionScans.reduce((sum, s) => sum + (s.marketPrice ?? 0), 0);
-  const isTablet = availableWidth >= 600;
 
   return (
+    <>
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
       <View style={{ flex: 1, flexDirection: isDesktop ? "row" : "column", padding: isDesktop ? 24 : 16, gap: isDesktop ? 24 : 16, alignItems: isDesktop ? "flex-start" : undefined }}>
         
@@ -585,7 +801,14 @@ function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; ava
             <Text style={{ fontSize: 16, fontWeight: "900", color: "#fff" }}>
               {activeSession ? "Session Queue" : "Recent Scans"}
             </Text>
-            <History size={16} color={KadoColors.slateText} />
+            <Pressable
+              onPress={() => setShowSessionHistory(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Session history"
+              style={{ padding: 8 }}
+            >
+              <History size={16} color={KadoColors.slateText} />
+            </Pressable>
           </View>
 
           {stagedScans === undefined ? (
@@ -625,5 +848,46 @@ function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; ava
         </View>
       </View>
     </ScrollView>
+
+    <Modal visible={showSessionHistory} animationType="slide" transparent onRequestClose={() => setShowSessionHistory(false)}>
+      <View className="flex-1 bg-black/80 justify-end">
+        <View className="bg-midnight rounded-t-[32px] border-t border-white/10 p-6 pb-10 max-h-[80%]">
+          <Text className="text-white text-xl font-black mb-1">Session history</Text>
+          <Text className="text-slate-text text-xs mb-4 uppercase tracking-widest">Completed flea market hunts</Text>
+          {sessionHistory === undefined ? (
+            <ActivityIndicator color={KadoColors.umber} />
+          ) : sessionHistory.length === 0 ? (
+            <Text className="text-slate-text text-sm py-8 text-center">No completed sessions yet. End a live session to save it here.</Text>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {sessionHistory.map((s) => (
+                <View
+                  key={s._id}
+                  className="py-4 border-b border-white/5"
+                >
+                  <Text className="text-white font-bold text-base" numberOfLines={2}>{s.title ?? "Session"}</Text>
+                  <Text className="text-slate-text text-xs mt-1">
+                    {s.completedAt ? new Date(s.completedAt).toLocaleString() : ""}
+                  </Text>
+                  <View className="flex-row gap-6 mt-2">
+                    <Text className="text-slate-text text-xs">
+                      <Text className="text-white font-bold">{s.cardCount}</Text> cards
+                    </Text>
+                    <Text className="text-emerald-400 text-xs font-black">${s.totalValue.toFixed(2)}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+          <Pressable
+            onPress={() => setShowSessionHistory(false)}
+            className="mt-4 py-3 items-center rounded-xl bg-white/5 border border-white/10"
+          >
+            <Text className="text-light-slate font-bold">Close</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
