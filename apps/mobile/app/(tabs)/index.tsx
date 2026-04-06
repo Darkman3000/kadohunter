@@ -227,9 +227,7 @@ export default function ScannerScreen() {
   );
 
   const handleOpenSettings = useCallback(() => {
-    // Try the standard Expo method first, then fall back to explicit Android URI
     Linking.openSettings().catch(() => {
-      // On some Android builds, openSettings may fail — try explicit intent
       Linking.openURL("app-settings:").catch(() => {
         Alert.alert(
           "Open Settings Manually",
@@ -243,9 +241,6 @@ export default function ScannerScreen() {
 
   const handlePermissionRequest = useCallback(async () => {
     if (Platform.OS === "web") {
-      // expo-camera's permission hook state is buggy on web. 
-      // Bypassing the guard allows CameraView to mount, which natively 
-      // forces the browser to prompt the user for permission.
       setIsWebCameraRequested(true);
       return;
     }
@@ -257,7 +252,6 @@ export default function ScannerScreen() {
       }
       return;
     }
-    // Already denied — must go to settings
     handleOpenSettings();
   }, [handleOpenSettings, permission?.canAskAgain, requestPermission]);
 
@@ -295,6 +289,7 @@ export default function ScannerScreen() {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         showFeedback("error", message);
         Alert.alert("Recognition failed", message);
+        setPreviewUri(null);
       } finally {
         setIsScanning(false);
         setScanSource(null);
@@ -308,21 +303,36 @@ export default function ScannerScreen() {
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        base64: true,
-        quality: 0.5,
+        base64: false,
+        quality: 1,
         skipProcessing: true,
       });
 
-      if (!photo?.base64) {
-        throw new Error("Camera capture did not include image data.");
+      if (!photo?.uri) {
+        throw new Error("Camera capture did not generate an image URI.");
       }
 
-      await runRecognition(photo.base64, "camera");
+      setPreviewUri(photo.uri);
+      setScanResult(null);
+      setFeedback(null);
+
+      const compressed = await manipulateAsync(
+        photo.uri,
+        [{ resize: { width: 640 } }],
+        { compress: 0.6, format: SaveFormat.JPEG, base64: true }
+      );
+
+      if (!compressed.base64) {
+        throw new Error("Failed to compress image.");
+      }
+
+      await runRecognition(compressed.base64, "camera");
     } catch (error) {
       const message = getRecognitionErrorMessage(error);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showFeedback("error", message);
       Alert.alert("Capture failed", message);
+      setPreviewUri(null);
     }
   }, [isSaving, isScanning, runRecognition, showFeedback]);
 
@@ -353,28 +363,38 @@ export default function ScannerScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        base64: true,
-        quality: 0.85,
+        base64: false,
+        quality: 1,
         allowsEditing: false,
       });
 
-      if (result.canceled) return;
+      if (result.canceled || !result.assets?.[0]?.uri) return;
 
-      const base64 = result.assets?.[0]?.base64;
-      if (!base64) {
-        throw new Error("Selected image could not be read.");
+      const uri = result.assets[0].uri;
+      setPreviewUri(uri);
+      setScanResult(null);
+      setFeedback(null);
+
+      const compressed = await manipulateAsync(
+        uri,
+        [{ resize: { width: 640 } }],
+        { compress: 0.6, format: SaveFormat.JPEG, base64: true }
+      );
+
+      if (!compressed.base64) {
+        throw new Error("Selected image could not be read or compressed.");
       }
 
-      await runRecognition(base64, "gallery");
+      await runRecognition(compressed.base64, "gallery");
     } catch (error) {
       const message = getPermissionErrorMessage(error);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showFeedback("error", message);
       Alert.alert("Upload failed", message);
+      setPreviewUri(null);
     }
   }, [
     handleOpenSettings,
-    handlePermissionRequest,
     isSaving,
     isScanning,
     runRecognition,
@@ -383,6 +403,7 @@ export default function ScannerScreen() {
 
   const handleDismissResult = useCallback(() => {
     setScanResult(null);
+    setPreviewUri(null);
     setFeedback(null);
   }, []);
 

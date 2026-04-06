@@ -21,6 +21,7 @@
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.0",
     "@expo/log-box": "^55.0.8",
+    "@gorhom/bottom-sheet": "^5.2.8",
     "@kado/contracts": "0.1.0",
     "@kado/domain": "0.1.0",
     "@kado/ui": "0.1.0",
@@ -36,6 +37,7 @@
     "expo-font": "~55.0.4",
     "expo-haptics": "~55.0.9",
     "expo-image": "~55.0.6",
+    "expo-image-manipulator": "~55.0.13",
     "expo-image-picker": "~55.0.14",
     "expo-linking": "~55.0.9",
     "expo-notifications": "~55.0.15",
