@@ -38,6 +38,7 @@ import { api } from "../../../../convex/_generated/api";
 import { KadoColors } from "@/constants/theme";
 import { BREAKPOINTS } from "@/constants/breakpoints";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { getOrCreateDeviceId } from "@/lib/device-id";
 import {
   recognitionService,
   type RecognitionResult,
@@ -132,6 +133,7 @@ export default function ScannerScreen() {
   const { viewMode, scanId, sessionId } = useLocalSearchParams();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
+  const [deviceId, setDeviceId] = useState<string | null>(null);
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const currentUser = useQuery(
     api.users.getCurrentUser,
@@ -144,7 +146,10 @@ export default function ScannerScreen() {
     viewMode === "staged" ? { stagedId: scanId as Id<"stagedScans"> } : "skip"
   );
 
-  const activeSession = useQuery(api.sessions.getActiveSession, { deviceId: "default" });
+  const activeSession = useQuery(
+    api.sessions.getActiveSession,
+    deviceId ? { deviceId } : "skip"
+  );
 
   const logScanAttempt = useMutation(api.users.logScanAttempt);
   const saveScanToCollection = useMutation(api.users.saveScanToCollection);
@@ -164,6 +169,16 @@ export default function ScannerScreen() {
     ? `${scansToday}/${FREE_SCAN_LIMIT}`
     : `${scansToday}`;
   const canSaveToBinder = Boolean(isSignedIn && currentUser?._id) && !isSaving;
+
+  useEffect(() => {
+    let cancelled = false;
+    void getOrCreateDeviceId().then((id) => {
+      if (!cancelled) setDeviceId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!feedback) return;
@@ -401,9 +416,11 @@ export default function ScannerScreen() {
         });
         showFeedback("success", `${scanResult.name} added to your binder.`);
       } else if (scanMode === "Flea") {
+          const resolvedDeviceId = deviceId ?? (await getOrCreateDeviceId());
+          if (!deviceId) setDeviceId(resolvedDeviceId);
           const stagedId = await saveToStaged({
             userId: currentUser._id,
-            deviceId: "default",
+            deviceId: resolvedDeviceId,
             sessionId: activeSession?._id,
             gameCode: scanResult.game,
             cardId,
@@ -445,6 +462,8 @@ export default function ScannerScreen() {
     scanMode,
     scanResult,
     showFeedback,
+    deviceId,
+    activeSession?._id,
   ]);
 
   if (!permission) {

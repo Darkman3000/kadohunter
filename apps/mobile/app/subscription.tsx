@@ -20,8 +20,10 @@ import {
   Sparkles,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useMutation } from "convex/react";
 import { KadoColors } from "@/constants/theme";
 import { subscriptionPlans } from "@kado/domain";
+import { api } from "../../../convex/_generated/api";
 
 const CloseIcon = X as React.ComponentType<any>;
 const CrownIcon = Crown as React.ComponentType<any>;
@@ -137,6 +139,8 @@ const COMPARISON = [
 export default function SubscriptionScreen() {
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<PlanInterval>("yearly");
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const setSubscriptionTier = useMutation(api.users.setSubscriptionTier);
 
   const monthlyPrice = proPlan?.monthlyPrice ?? 4.99;
   const yearlyPrice = proPlan?.yearlyPrice ?? 39.99;
@@ -144,17 +148,39 @@ export default function SubscriptionScreen() {
     ((monthlyPrice * 12 - yearlyPrice) / (monthlyPrice * 12)) * 100
   );
 
-  const handleSubscribe = () => {
+  const handleSubscribe = async () => {
+    if (isSubscribing) return;
     const planLabel =
       selectedPlan === "monthly"
         ? `$${monthlyPrice.toFixed(2)}/month`
         : `$${yearlyPrice.toFixed(2)}/year`;
-
-    Alert.alert(
-      "Subscribe to PRO",
-      `This will start your Hunter PRO subscription at ${planLabel}.\n\nIn-app purchases coming soon!`,
-      [{ text: "OK" }]
-    );
+    setIsSubscribing(true);
+    try {
+      await setSubscriptionTier({
+        tier: "pro",
+        billingCycle: selectedPlan === "monthly" ? "monthly" : "annual",
+      });
+      Alert.alert("Hunter PRO unlocked", `Your plan is now active at ${planLabel}.`, [
+        {
+          text: "Continue",
+          onPress: () => router.replace("/(tabs)/profile"),
+        },
+      ]);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Direct tier changes are disabled")) {
+        Alert.alert(
+          "Checkout required",
+          "Billing webhook mode is enabled. Complete payment through your checkout provider to activate PRO automatically."
+        );
+        return;
+      }
+      Alert.alert(
+        "Subscription failed",
+        error instanceof Error ? error.message : "Could not activate PRO right now."
+      );
+    } finally {
+      setIsSubscribing(false);
+    }
   };
 
   return (
@@ -476,7 +502,7 @@ export default function SubscriptionScreen() {
 
         {/* Subscribe Button */}
         <Pressable
-          onPress={handleSubscribe}
+          onPress={() => void handleSubscribe()}
           className="py-4 rounded-2xl items-center justify-center flex-row gap-2 active:scale-[0.98] border border-white/10"
           style={{
             backgroundColor: KadoColors.umber,
@@ -485,10 +511,12 @@ export default function SubscriptionScreen() {
             shadowOpacity: 0.28,
             shadowRadius: 18,
             elevation: 10,
+            opacity: isSubscribing ? 0.7 : 1,
           }}
+          disabled={isSubscribing}
         >
           <Text className="text-midnight font-extrabold text-base tracking-tight">
-            Unlock Pro Access
+            {isSubscribing ? "Activating PRO..." : "Unlock Pro Access"}
           </Text>
           <ZapIcon
             size={18}

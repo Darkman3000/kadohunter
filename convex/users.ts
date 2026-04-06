@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 
 const FREE_SCAN_LIMIT = 5; // Mirrors @kado/domain scanLimits.free
 import {
@@ -184,6 +184,47 @@ export const registerPushToken = mutation({
     },
 });
 
+/**
+ * Update the caller's subscription tier.
+ * NOTE: This is an app-side upgrade hook until payment webhooks are integrated.
+ */
+export const setSubscriptionTier = mutation({
+    args: {
+        tier: v.union(v.literal("free"), v.literal("pro")),
+        billingCycle: v.optional(v.union(v.literal("monthly"), v.literal("annual"))),
+    },
+    handler: async (ctx, args) => {
+        if (process.env.ALLOW_CLIENT_TIER_UPGRADE !== "true") {
+            throw new Error("Direct tier changes are disabled. Use billing webhook flow.");
+        }
+        const user = await requireCurrentUser(ctx);
+        await ctx.db.patch(user._id, {
+            tier: args.tier,
+            billingCycle: args.billingCycle,
+        });
+        return { success: true };
+    },
+});
+
+export const setSubscriptionTierByToken = internalMutation({
+    args: {
+        tokenIdentifier: v.string(),
+        tier: v.union(v.literal("free"), v.literal("pro")),
+        billingCycle: v.optional(v.union(v.literal("monthly"), v.literal("annual"))),
+    },
+    handler: async (ctx, args) => {
+        const user = await getUserByTokenIdentifier(ctx, args.tokenIdentifier);
+        if (!user) {
+            throw new Error("User not found");
+        }
+        await ctx.db.patch(user._id, {
+            tier: args.tier,
+            billingCycle: args.billingCycle,
+        });
+        return { success: true, userId: user._id };
+    },
+});
+
 export const getCardById = query({
     args: { scanId: v.id("savedScans") },
     handler: async (ctx, args) => {
@@ -214,7 +255,23 @@ export const updateCardCondition = mutation({
 export const getStagedScanById = query({
     args: { stagedId: v.id("stagedScans") },
     handler: async (ctx, args) => {
-        return await ctx.db.get(args.stagedId);
+        const user = await requireCurrentUser(ctx);
+        const staged = await ctx.db.get(args.stagedId);
+        if (!staged) return null;
+
+        const isOwner = staged.userId === user._id;
+        let isSharedReviewer = false;
+
+        if (staged.sessionId) {
+            const session = await ctx.db.get(staged.sessionId);
+            isSharedReviewer = Boolean(session?.sharedWith?.includes(user._id));
+        }
+
+        if (!isOwner && !isSharedReviewer) {
+            throw new Error("Not found");
+        }
+
+        return staged;
     },
 });
 
@@ -279,6 +336,21 @@ export const updateCardQuantity = mutation({
         await requireOwnedScan(ctx, args.scanId);
         if (args.quantity < 1) throw new Error("Quantity must be at least 1");
         await ctx.db.patch(args.scanId, { quantity: args.quantity });
+    },
+});
+
+export const updateCardTags = mutation({
+    args: {
+        scanId: v.id("savedScans"),
+        tags: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        await requireOwnedScan(ctx, args.scanId);
+        const normalized = args.tags
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+            .slice(0, 8);
+        await ctx.db.patch(args.scanId, { tags: normalized });
     },
 });
 

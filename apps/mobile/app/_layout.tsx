@@ -16,7 +16,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { KadoColors } from "@/constants/theme";
 import { BREAKPOINTS, getWebSidebarWidth } from "@/constants/breakpoints";
 import "react-native-reanimated";
-import * as Notifications from "expo-notifications";
+// Lazy-import notifications to avoid crash when native module is missing from dev build
+let Notifications: typeof import("expo-notifications") | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Notifications = require("expo-notifications") as typeof import("expo-notifications");
+} catch {
+  console.warn("[KadoHunter] expo-notifications native module not available — push disabled");
+}
 import Constants from "expo-constants";
 
 function Sidebar() {
@@ -220,7 +227,7 @@ function InitUser() {
   const registerPushToken = useMutation(api.users.registerPushToken);
 
   const registerForPushNotificationsAsync = async () => {
-    if (Platform.OS === "web") return null;
+    if (Platform.OS === "web" || !Notifications) return null;
 
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;

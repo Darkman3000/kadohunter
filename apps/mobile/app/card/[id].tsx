@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -58,12 +58,14 @@ function formatUsd(value: number) {
   return formatted.trim() + " $";
 }
 
-// Mock Price History Data for the Graph
-const MOCK_PRICE_HISTORY = {
-  tcgplayer: [24, 25, 24.5, 26, 25.5, 27, 26.643],
-  cardmarket: [18, 19, 18.2, 18.8, 18.4, 18.9, 18.111],
-  ebay: [21, 22, 21.5, 22.5, 21.8, 23, 22.219],
+type PriceRange = "1W" | "1M" | "3M" | "All";
+const PRICE_RANGE_LIMITS: Record<PriceRange, number> = {
+  "1W": 7,
+  "1M": 30,
+  "3M": 90,
+  All: 365,
 };
+const TAG_PRESETS = ["Grail", "Vault", "Trade", "PC", "To Sell", "Watchlist"] as const;
 
 function PriceGraph({ width, height, data }: { width: number; height: number; data: any[] }) {
   if (!data || data.length < 2) {
@@ -171,7 +173,11 @@ export default function CardDetailScreen() {
     viewMode === "staged" ? { stagedId: scanId as Id<"stagedScans"> } : "skip"
   );
 
-  const rawCard = binderCard || marketCard || stagedCard;
+  const rawCard = binderCard ?? marketCard ?? stagedCard ?? null;
+  const isLoadingCard =
+    (viewMode === "binder" && binderCard === undefined) ||
+    (viewMode === "market" && marketCard === undefined) ||
+    (viewMode === "staged" && stagedCard === undefined);
 
   const displayCard = useMemo(() => {
     if (!rawCard) return null;
@@ -212,17 +218,22 @@ export default function CardDetailScreen() {
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [selectedRange, setSelectedRange] = useState<PriceRange>("3M");
+  const [tags, setTags] = useState<string[]>([]);
 
   const updateCardQuantity = useMutation(api.users.updateCardQuantity);
   const toggleFavoriteMut = useMutation(api.users.toggleFavorite);
+  const updateCardTagsMut = useMutation(api.users.updateCardTags);
 
   // Sync internal state when card loads
   useEffect(() => {
     if (binderCard) {
       setQuantity((binderCard as any).quantity ?? 1);
       setIsFavorite((binderCard as any).isFavorite ?? false);
+      setTags(Array.isArray((binderCard as any).tags) ? ((binderCard as any).tags as string[]) : []);
     } else {
       setQuantity(1);
+      setTags([]);
     }
   }, [binderCard]);
 
@@ -233,7 +244,13 @@ export default function CardDetailScreen() {
 
   const historicalData = useQuery(
     api.prices.getHistoricalData,
-    rawCard ? { cardId: (rawCard as any).cardId, gameCode: (rawCard as any).gameCode, limit: 30 } : "skip"
+    rawCard
+      ? {
+          cardId: (rawCard as any).cardId,
+          gameCode: (rawCard as any).gameCode,
+          limit: PRICE_RANGE_LIMITS[selectedRange],
+        }
+      : "skip"
   );
 
   const priceChangeStr = useMemo(() => {
@@ -243,6 +260,10 @@ export default function CardDetailScreen() {
     const pct = ((latestPrice.marketPrice - oldest) / oldest) * 100;
     return pct >= 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
   }, [historicalData, latestPrice]);
+  const basePrice = latestPrice?.marketPrice || displayCard?.price || 0;
+  const inventoryTotalValue = quantity * basePrice;
+  const inventoryCondition = (binderCard as any)?.condition || "NM";
+  const inventoryAddedAt = (binderCard as any)?.createdAt as number | undefined;
 
   const syncPrice = useAction(api.prices.syncPrice);
   const toggleWishlist = useMutation(api.wishlists.toggleWishlistItem);
@@ -254,16 +275,104 @@ export default function CardDetailScreen() {
   useEffect(() => {
     if (rawCard && (!latestPrice || latestPrice.isStale)) {
         setIsSyncing(true);
-        syncPrice({ cardId: (rawCard as any).cardId, gameCode: (rawCard as any).gameCode, cardName: (rawCard as any).cardName || "Unknown" })
+        syncPrice({
+          cardId: (rawCard as any).cardId,
+          gameCode: (rawCard as any).gameCode,
+          cardName: (rawCard as any).cardName || "Unknown",
+          setName: (rawCard as any).setName,
+          number: (rawCard as any).number,
+        })
             .finally(() => setIsSyncing(false));
     }
-  }, [(rawCard as any)?.cardId, latestPrice === null]);
+  }, [(rawCard as any)?.cardId, latestPrice?.isStale, latestPrice?._id]);
 
-  if (rawCard === undefined || !displayCard) {
+  const openMarketplace = useCallback(
+    async (platform: "TCGplayer" | "Cardmarket" | "eBay") => {
+      if (!displayCard) return;
+      const query = encodeURIComponent(`${displayCard.name} ${displayCard.set} ${displayCard.num}`.trim());
+      const url =
+        platform === "TCGplayer"
+          ? `https://www.tcgplayer.com/search/all/product?q=${query}`
+          : platform === "Cardmarket"
+            ? `https://www.cardmarket.com/en/Magic/Products/Search?searchString=${query}`
+            : `https://www.ebay.com/sch/i.html?_nkw=${query}`;
+
+      try {
+        const canOpen = await Linking.canOpenURL(url);
+        if (!canOpen) {
+          Alert.alert("Cannot open link", "Your device cannot open this marketplace link.");
+          return;
+        }
+        await Linking.openURL(url);
+      } catch (error) {
+        Alert.alert(
+          "Could not open marketplace",
+          error instanceof Error ? error.message : "Please try again."
+        );
+      }
+    },
+    [displayCard?.name, displayCard?.num, displayCard?.set]
+  );
+
+  const persistTags = useCallback(
+    async (nextTags: string[]) => {
+      if (viewMode !== "binder" || !scanId) {
+        Alert.alert("Tags unavailable", "Tag editing is only available for cards in your binder.");
+        return;
+      }
+      setTags(nextTags);
+      try {
+        await updateCardTagsMut({ scanId: scanId as Id<"savedScans">, tags: nextTags });
+      } catch (error) {
+        Alert.alert(
+          "Could not update tags",
+          error instanceof Error ? error.message : "Please try again."
+        );
+      }
+    },
+    [scanId, updateCardTagsMut, viewMode]
+  );
+
+  const handleRemoveTag = useCallback(
+    (tag: string) => {
+      void persistTags(tags.filter((t) => t !== tag));
+    },
+    [persistTags, tags]
+  );
+
+  const handleAddTag = useCallback(() => {
+    const next = TAG_PRESETS.find((preset) => !tags.includes(preset));
+    if (!next) {
+      Alert.alert("All presets added", "You already added all predefined tags.");
+      return;
+    }
+    void persistTags([...tags, next]);
+  }, [persistTags, tags]);
+
+  if (isLoadingCard) {
     return (
       <View className="flex-1 bg-midnight items-center justify-center">
         <ActivityIndicator color={KadoColors.umber} />
       </View>
+    );
+  }
+
+  if (!displayCard) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: KadoColors.midnight }} edges={["top", "bottom"]}>
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="text-white text-2xl font-bold mb-2">Card not found</Text>
+          <Text className="text-slate-text text-center mb-6">
+            This card may have been removed or the link is invalid.
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            className="px-5 py-3 rounded-xl bg-white/10 border border-white/15"
+          >
+            <Text className="text-light-slate font-bold">Go back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -345,15 +454,15 @@ export default function CardDetailScreen() {
           <View className="flex-row justify-end mb-4">
              <View className="flex-row items-center gap-2">
                  {isSyncing && <ActivityIndicator size="small" color={KadoColors.umber} className="mr-2" />}
-                 {['1W', '1M', '3M', 'All'].map(t => (
-                   <View key={t} className={`px-2 py-1 rounded-full ${t === '3M' ? 'bg-[#D6A65E] border-none' : 'bg-white/5 border border-white/10'}`}>
-                      <Text className={`text-[10px] font-bold ${t === '3M' ? 'text-black' : 'text-slate-text'}`}>{t}</Text>
-                   </View>
+                 {(['1W', '1M', '3M', 'All'] as PriceRange[]).map((t) => (
+                   <Pressable
+                     key={t}
+                     onPress={() => setSelectedRange(t)}
+                     className={`px-2 py-1 rounded-full ${t === selectedRange ? 'bg-[#D6A65E] border-none' : 'bg-white/5 border border-white/10'}`}
+                   >
+                      <Text className={`text-[10px] font-bold ${t === selectedRange ? 'text-black' : 'text-slate-text'}`}>{t}</Text>
+                   </Pressable>
                  ))}
-                 <View className="px-2 py-1 rounded-full bg-white/5 border border-white/10 items-center justify-center flex-row gap-1">
-                    <Text className="text-[10px] font-bold text-slate-text">All</Text>
-                    <BookOpenIcon color={KadoColors.slateText} size={10} />
-                 </View>
              </View>
           </View>
 
@@ -383,13 +492,26 @@ export default function CardDetailScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-10">
              <MarketCard
                platform={latestPrice?.source || "TCGplayer"}
-               price={latestPrice?.marketPrice || displayCard.price || 0}
+               price={basePrice}
                change={priceChangeStr}
-               listings={12}
+               listings={undefined}
                active
+               onBuy={() => void openMarketplace("TCGplayer")}
              />
-             <MarketCard platform="Cardmarket" price={(latestPrice?.marketPrice || displayCard.price || 0) * 0.9} change="N/A" listings={8} />
-             <MarketCard platform="eBay" price={(latestPrice?.marketPrice || displayCard.price || 0) * 1.05} change="N/A" listings={24} />
+             <MarketCard
+               platform="Cardmarket"
+               price={latestPrice?.lowPrice ?? basePrice}
+               change="N/A"
+               listings={undefined}
+               onBuy={() => void openMarketplace("Cardmarket")}
+             />
+             <MarketCard
+               platform="eBay"
+               price={latestPrice?.highPrice ?? basePrice}
+               change="N/A"
+               listings={undefined}
+               onBuy={() => void openMarketplace("eBay")}
+             />
           </ScrollView>
 
           {/* Tags */}
@@ -399,37 +521,45 @@ export default function CardDetailScreen() {
                   <BookOpenIcon color={KadoColors.slateText} size={14} />
                   <Text className="text-[10px] font-bold uppercase tracking-widest text-white/60">TAGS</Text>
                </View>
-               <Pressable className="w-6 h-6 rounded-md bg-white/5 border border-white/10 items-center justify-center">
+               <Pressable onPress={handleAddTag} className="w-6 h-6 rounded-md bg-white/5 border border-white/10 items-center justify-center">
                   <PlusIcon size={12} color={KadoColors.slateText} />
                </Pressable>
             </View>
-            <View className="flex-row gap-2">
-                <View className="px-4 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 flex-row items-center gap-2">
-                   <Text className="text-xs font-bold text-blue-400">Grail</Text>
-                   <CloseIcon size={10} color="#60a5fa" />
-                </View>
-                <View className="px-4 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 flex-row items-center gap-2">
-                   <Text className="text-xs font-bold text-blue-400">Vault</Text>
-                   <CloseIcon size={10} color="#60a5fa" />
-                </View>
+            <View className="flex-row flex-wrap gap-2">
+                {tags.length === 0 ? (
+                  <Text className="text-xs text-slate-text">No tags yet. Tap + to add a preset tag.</Text>
+                ) : (
+                  tags.map((tag) => (
+                    <Pressable
+                      key={tag}
+                      onPress={() => handleRemoveTag(tag)}
+                      className="px-4 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 flex-row items-center gap-2"
+                    >
+                       <Text className="text-xs font-bold text-blue-400">{tag}</Text>
+                       <CloseIcon size={10} color="#60a5fa" />
+                    </Pressable>
+                  ))
+                )}
             </View>
           </View>
 
           {/* Inventory */}
           <View className="mb-10">
              <View className="flex-row items-center justify-between mb-4">
-                <Text className="text-xs font-bold text-white/60">Inventory <Text className="text-white">Total: 1</Text></Text>
-                <Text className="text-xs font-black text-emerald-400">26.643 $</Text>
+                <Text className="text-xs font-bold text-white/60">Inventory <Text className="text-white">Total: {quantity}</Text></Text>
+                <Text className="text-xs font-black text-emerald-400">{formatUsd(inventoryTotalValue)}</Text>
              </View>
 
              <View className="p-4 rounded-2xl bg-white/5 border border-white/5 flex-row items-center justify-between">
                 <View className="flex-row items-center gap-4">
                    <View className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 items-center justify-center">
-                      <Text className="text-xs font-black text-emerald-400">NM</Text>
+                      <Text className="text-xs font-black text-emerald-400">{inventoryCondition}</Text>
                    </View>
                    <View>
                       <Text className="text-sm font-bold text-white">Normal</Text>
-                      <Text className="text-[10px] text-slate-text">Added: 29.3.2026</Text>
+                      <Text className="text-[10px] text-slate-text">
+                        Added: {inventoryAddedAt ? new Date(inventoryAddedAt).toLocaleDateString() : "Unknown"}
+                      </Text>
                    </View>
                 </View>
 
@@ -463,7 +593,21 @@ export default function CardDetailScreen() {
   );
 }
 
-function MarketCard({ platform, price, change, listings, active = false }: { platform: string, price: number, change: string, listings: number, active?: boolean }) {
+function MarketCard({
+  platform,
+  price,
+  change,
+  listings,
+  active = false,
+  onBuy,
+}: {
+  platform: string;
+  price: number;
+  change: string;
+  listings?: number;
+  active?: boolean;
+  onBuy?: () => void;
+}) {
   const isUp = change.startsWith('+');
   
   return (
@@ -484,9 +628,14 @@ function MarketCard({ platform, price, change, listings, active = false }: { pla
          </View>
       </View>
       
-      <Text className="text-[10px] text-slate-text mb-4">{listings} listings</Text>
+      <Text className="text-[10px] text-slate-text mb-4">
+        {typeof listings === "number" ? `${listings} listings` : "Listings unavailable"}
+      </Text>
       
-      <Pressable className={`py-2 rounded-lg items-center justify-center ${active ? 'bg-blue-600' : 'bg-white/10'}`}>
+      <Pressable
+        onPress={onBuy}
+        className={`py-2 rounded-lg items-center justify-center ${active ? 'bg-blue-600' : 'bg-white/10'}`}
+      >
          <Text className="text-[10px] font-bold text-white">Buy on {platform}</Text>
       </Pressable>
     </View>

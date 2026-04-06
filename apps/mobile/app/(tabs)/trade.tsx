@@ -28,6 +28,7 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { KadoColors } from "@/constants/theme";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { getOrCreateDeviceId } from "@/lib/device-id";
 import { FriendPicker, type PickableFriend } from "../../components/FriendPicker";
 import { CardPicker, type PickableCard } from "../../components/CardPicker";
 
@@ -702,15 +703,35 @@ function TradeDeskView({ availableWidth, isDesktop }: { availableWidth: number; 
 function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; availableWidth: number }) {
   const router = useRouter();
   const [showSessionHistory, setShowSessionHistory] = useState(false);
-  const deviceId = "default";
-  const activeSession = useQuery(api.sessions.getActiveSession, { deviceId });
-  const stagedScans = useQuery(api.users.getStagedScans, { deviceId });
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const activeSession = useQuery(
+    api.sessions.getActiveSession,
+    deviceId ? { deviceId } : "skip"
+  );
+  const stagedScans = useQuery(
+    api.users.getStagedScans,
+    deviceId ? { deviceId } : {}
+  );
   const sessionHistory = useQuery(api.sessions.getSessionHistory, {});
 
   const startSession = useMutation(api.sessions.startSession);
   const endSession = useMutation(api.sessions.endSession);
 
+  React.useEffect(() => {
+    let cancelled = false;
+    void getOrCreateDeviceId().then((id) => {
+      if (!cancelled) setDeviceId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleStartSession = async () => {
+    if (!deviceId) {
+      Alert.alert("Device initializing", "Please wait a second and try again.");
+      return;
+    }
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await startSession({ deviceId, title: `Hunt @ ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` });
     router.push("/(tabs)/" as any);

@@ -83,6 +83,7 @@ export default defineSchema({
         imageUrl: v.optional(v.string()),
         quantity: v.optional(v.number()),
         isFavorite: v.optional(v.boolean()),
+        tags: v.optional(v.array(v.string())),
         createdAt: v.number(),
     }).index("by_user", ["userId"]),
 
