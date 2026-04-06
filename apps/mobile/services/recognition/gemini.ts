@@ -64,6 +64,18 @@ export class GeminiProvider implements RecognitionProvider {
       confidence: data.confidence ?? 0.5,
       providerUsed: this.name,
       imageUrl: data.imageUrl,
+      variant: data.variant,
+      finish: data.finish,
+      cardId: data.cardId,
+      pricePending: data.pricePending,
+      hp: data.hp,
+      attacks: data.attacks,
+      power: data.power,
+      cost: data.cost,
+      attribute: data.attribute,
+      lore: data.lore,
+      artist: data.artist,
+      notableDetail: data.notableDetail,
     };
   }
 }

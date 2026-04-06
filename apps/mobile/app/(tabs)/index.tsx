@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { useAuth } from "@clerk/clerk-expo";
 import {
   FolderOpen,
@@ -157,6 +158,7 @@ export default function ScannerScreen() {
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [scanSource, setScanSource] = useState<ScanSource | null>(null);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<RecognitionResult | null>(null);
   const [scanMode, setScanMode] = useState<ScanMode>("Binder");
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -728,9 +730,10 @@ export default function ScannerScreen() {
 
         </View>
 
-        {scanResult && !isDesktop && (
+        {(scanResult || previewUri) && !isDesktop && (
           <ScanResultCard
             scanResult={scanResult}
+            previewUri={previewUri}
             isSaving={isSaving}
             canSaveToBinder={canSaveToBinder}
             isSignedIn={isSignedIn ?? false}
@@ -742,7 +745,7 @@ export default function ScannerScreen() {
         )}
 
         {/* Desktop: result panel shown in a right sidebar */}
-        {isDesktop && scanResult && (
+        {isDesktop && (scanResult || previewUri) && (
           <View
             style={{
               width: 360,
@@ -753,6 +756,7 @@ export default function ScannerScreen() {
           >
             <ScanResultCard
               scanResult={scanResult}
+              previewUri={previewUri}
               isSaving={isSaving}
               canSaveToBinder={canSaveToBinder}
               isSignedIn={isSignedIn ?? false}

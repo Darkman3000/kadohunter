@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { Image } from "expo-image";
 import Animated, { FadeInDown, FadeOutDown, useSharedValue, withRepeat, withTiming, Easing, cancelAnimation, useAnimatedStyle } from "react-native-reanimated";
@@ -12,7 +12,9 @@ import {
   Sparkles,
   TrendingUp,
   X,
+  ChevronUp,
 } from "lucide-react-native";
+import { CardDossier } from "./CardDossier";
 
 const LOW_CONFIDENCE_THRESHOLD = 0.65;
 
@@ -22,6 +24,7 @@ const SparklesIcon = Sparkles as React.ComponentType<any>;
 const TrendingUpIcon = TrendingUp as React.ComponentType<any>;
 const CheckIcon = Check as React.ComponentType<any>;
 const CloseIcon = X as React.ComponentType<any>;
+const ChevronUpIcon = ChevronUp as React.ComponentType<any>;
 
 export function ScanResultCard({
   scanResult,
@@ -44,6 +47,7 @@ export function ScanResultCard({
   onDismiss: () => void;
   onSave: () => void;
 }) {
+  const [isDossierOpen, setIsDossierOpen] = useState(false);
   // We use this shared value for skeleton pulse animation
   const opacity = useSharedValue(0.4);
 
@@ -69,11 +73,14 @@ export function ScanResultCard({
   const allowSave = canSaveToBinder && !isSkeleton;
 
   return (
-    <Animated.View
-      entering={FadeInDown.duration(220)}
-      exiting={FadeOutDown.duration(180)}
-      className="absolute inset-x-0 bottom-6 px-4"
-    >
+    <>
+      <Animated.View
+        entering={FadeInDown.duration(220)}
+        exiting={FadeOutDown.duration(180)}
+        className="absolute inset-x-0 bottom-6 px-4"
+        pointerEvents={isDossierOpen ? "none" : "auto"} // Stop taps hitting UI behind the sheet
+        style={isDossierOpen ? { opacity: 0 } : { opacity: 1 }}
+      >
       <View
         className="rounded-3xl border border-white/10 overflow-hidden"
         style={{
@@ -93,8 +100,20 @@ export function ScanResultCard({
           <CloseIcon size={16} style={{ color: KadoColors.lightSlate }} />
         </Pressable>
 
-        <View className="p-5">
-          <View className="flex-row gap-4">
+        <Pressable
+          onPress={() => setIsDossierOpen(true)}
+          disabled={isSkeleton || isSaving}
+          className="p-5"
+        >
+          {/* Details Hint */}
+          {!isSkeleton && scanResult && (
+            <View className="absolute top-2 inset-x-0 items-center opacity-50">
+               <View className="w-10 h-1 rounded-full bg-white/20 mb-1" />
+               <ChevronUpIcon size={12} color={KadoColors.slateText} />
+            </View>
+          )}
+
+          <View className="flex-row gap-4 mt-2">
             {imageUrl ? (
               <Image
                 source={{ uri: imageUrl }}
@@ -264,8 +283,23 @@ export function ScanResultCard({
               </Text>
             </Pressable>
           </View>
-        </View>
+        </Pressable>
       </View>
     </Animated.View>
+
+    {/* The Full Card Dossier Overlay */}
+    <CardDossier
+      isVisible={isDossierOpen}
+      onClose={() => setIsDossierOpen(false)}
+      scanResult={scanResult}
+      previewUri={previewUri}
+      onSave={onSave}
+      isSaving={isSaving}
+      canSaveToBinder={canSaveToBinder}
+      hasUser={hasUser}
+      isSignedIn={isSignedIn}
+      isAuthLoaded={isAuthLoaded}
+    />
+  </>
   );
 }

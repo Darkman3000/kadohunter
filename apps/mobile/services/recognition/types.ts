@@ -20,6 +20,14 @@ export interface RecognitionResult {
   finish?: string;
   cardId?: string;
   pricePending?: boolean;
+  hp?: number;
+  attacks?: { name: string; damage: string; energyCost: string }[];
+  power?: number;
+  cost?: number;
+  attribute?: string;
+  lore?: string;
+  artist?: string;
+  notableDetail?: string;
 }
 
 export interface RecognitionProvider {

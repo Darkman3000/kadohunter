@@ -99,7 +99,17 @@ Return a JSON object with these fields:
 - game (string): One of "pokemon", "yugioh", "onepiece", "mtg", "dragonball"
 - confidence (number): Your confidence from 0.0 to 1.0
 
-Do NOT estimate the price. Focus only on accurate identification of the card name, set, number, variant, and finish.`,
+Additional Intel Fields:
+- hp (number or null): Pokémon HP if applicable
+- attacks (array of objects): Pokémon or Dragon Ball attacks. Each object must have "name" (string), "damage" (string), and "energyCost" (string).
+- power (number or null): One Piece power if applicable
+- cost (number or null): One Piece cost if applicable
+- attribute (string or null): One Piece attribute (STR/DEX/INT/etc) if applicable
+- lore (string): Write ONE punchy sentence a collector would find interesting — not a generic flavor text/Pokédex entry. Focus on market significance, art uniqueness, or competitive relevance.
+- artist (string or null): Card artist name
+- notableDetail (string or null): "Tournament promo only" / "Alt art by HYOGONOSUKE" etc.
+
+Do NOT estimate the price. Focus only on accurate identification and the intel details.`,
                   },
                 ],
               },
@@ -117,6 +127,25 @@ Do NOT estimate the price. Focus only on accurate identification of the card nam
                   finish: { type: "STRING" },
                   game: { type: "STRING" },
                   confidence: { type: "NUMBER" },
+                  hp: { type: "NUMBER", nullable: true },
+                  attacks: {
+                    type: "ARRAY",
+                    items: {
+                      type: "OBJECT",
+                      properties: {
+                        name: { type: "STRING" },
+                        damage: { type: "STRING" },
+                        energyCost: { type: "STRING" },
+                      },
+                    },
+                    nullable: true,
+                  },
+                  power: { type: "NUMBER", nullable: true },
+                  cost: { type: "NUMBER", nullable: true },
+                  attribute: { type: "STRING", nullable: true },
+                  lore: { type: "STRING" },
+                  artist: { type: "STRING", nullable: true },
+                  notableDetail: { type: "STRING", nullable: true },
                 },
               },
             },
@@ -198,6 +227,14 @@ Do NOT estimate the price. Focus only on accurate identification of the card nam
         imageUrl,
         cardId, // Return the cardId so the client can subscribe to prices
         pricePending: true, // Signal to the client that real price is being fetched
+        hp: parsed.hp ?? undefined,
+        attacks: parsed.attacks ?? undefined,
+        power: parsed.power ?? undefined,
+        cost: parsed.cost ?? undefined,
+        attribute: parsed.attribute ?? undefined,
+        lore: parsed.lore ?? undefined,
+        artist: parsed.artist ?? undefined,
+        notableDetail: parsed.notableDetail ?? undefined,
       };
 
       return new Response(JSON.stringify(result), {
