@@ -13,8 +13,10 @@ import {
   ScrollView,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { KadoColors } from "@/constants/theme";
+import { BREAKPOINTS } from "@/constants/breakpoints";
 
 export interface DropdownOption {
   id: string;
@@ -37,6 +39,16 @@ interface DesktopDropdownProps {
   openRight?: boolean;
 }
 
+// ── Singleton registry: only one dropdown open at a time ──────────────────
+const _closers = new Set<() => void>();
+function registerDropdown(close: () => void) {
+  _closers.add(close);
+  return () => { _closers.delete(close); };
+}
+function closeAllOthers(except: () => void) {
+  _closers.forEach((fn) => { if (fn !== except) fn(); });
+}
+
 export function DesktopDropdown({
   trigger,
   title,
@@ -51,14 +63,28 @@ export function DesktopDropdown({
   const [layout, setLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const triggerRef = useRef<View>(null);
   const isWeb = Platform.OS === "web";
+  const { width: windowWidth } = useWindowDimensions();
+  const useFloatingPanel = isWeb && windowWidth >= BREAKPOINTS.DESKTOP;
+
+  const closeThis = React.useCallback(() => setOpen(false), []);
+
+  // Register/unregister this instance
+  React.useEffect(() => {
+    const unregister = registerDropdown(closeThis);
+    return unregister;
+  }, [closeThis]);
 
   const handleTriggerPress = () => {
-    if (isWeb && triggerRef.current) {
+    if (useFloatingPanel && triggerRef.current) {
       triggerRef.current.measure((_fx, _fy, w, h, px, py) => {
-        setLayout({ x: px, y: py, width: w, height: h });
+        const scrollY =
+          typeof window !== "undefined" ? window.scrollY ?? 0 : 0;
+        setLayout({ x: px, y: py + scrollY, width: w, height: h });
+        closeAllOthers(closeThis);
         setOpen(true);
       });
     } else {
+      closeAllOthers(closeThis);
       setOpen(true);
     }
   };
@@ -68,8 +94,8 @@ export function DesktopDropdown({
     setOpen(false);
   };
 
-  // ── Desktop: floating panel ─────────────────────────────────────────────
-  if (isWeb) {
+  // ── Desktop web only: floating panel ────────────────────────────────────
+  if (useFloatingPanel) {
     const panelTop = layout ? layout.y + layout.height + 6 : 0;
     const panelLeft = openRight
       ? layout
@@ -87,13 +113,17 @@ export function DesktopDropdown({
 
         {open && (
           <>
-            {/* Invisible overlay to catch outside clicks */}
+            {/* Dark scrim — covers only the content BELOW the toolbar */}
             <Pressable
               onPress={() => setOpen(false)}
               style={{
                 position: "fixed" as any,
-                inset: 0,
-                zIndex: 1000,
+                top: layout ? layout.y + layout.height : 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 9998,
+                backgroundColor: "rgba(0,0,0,0.45)",
               }}
             />
             {/* Floating panel */}
@@ -103,7 +133,7 @@ export function DesktopDropdown({
                 top: panelTop,
                 left: panelLeft,
                 width: panelWidth,
-                zIndex: 1001,
+                zIndex: 9999,
                 backgroundColor: "#0f1523",
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.1)",

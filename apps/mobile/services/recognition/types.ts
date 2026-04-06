@@ -16,6 +16,10 @@ export interface RecognitionResult {
   confidence: number;
   providerUsed: string;
   imageUrl?: string;
+  variant?: string;
+  finish?: string;
+  cardId?: string;
+  pricePending?: boolean;
 }
 
 export interface RecognitionProvider {

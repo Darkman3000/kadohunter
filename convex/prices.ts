@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, action, internalMutation } from "./_generated/server";
+import { query, mutation, action, internalMutation, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 
 const CACHE_EXPIRY_MS = 12 * 60 * 60 * 1000; // 12 hours
@@ -79,18 +79,48 @@ function chooseBestJustTcgCard(
         .sort((a, b) => b.score - a.score)[0]?.card ?? null;
 }
 
-function chooseBestJustTcgVariant(variants: any[]) {
+function chooseBestJustTcgVariant(
+    variants: any[],
+    opts?: { variant?: string; finish?: string }
+) {
+    const targetVariant = normalizeText(opts?.variant);
+    const targetFinish = normalizeText(opts?.finish);
+
     return (
         variants
-            .map((variant) => {
+            .map((v) => {
                 let score = 0;
-                const condition = normalizeText(variant?.condition);
-                const printing = normalizeText(variant?.printing);
+                const condition = normalizeText(v?.condition);
+                const printing = normalizeText(v?.printing);
+                const edition = normalizeText(v?.edition);
+
+                // Condition scoring
                 if (condition === "near mint" || condition === "nm") score += 50;
-                if (printing === "normal") score += 30;
-                if (printing === "unlimited") score += 20;
-                score += Number(variant?.price ?? 0) > 0 ? 5 : 0;
-                return { variant, score };
+
+                // Variant matching — critical for correct pricing
+                if (targetVariant && targetVariant !== "standard") {
+                    // Non-standard variant: prefer matching printing
+                    if (printing.includes(targetVariant) || edition.includes(targetVariant)) {
+                        score += 80;
+                    } else if (printing === "normal" || edition === "unlimited") {
+                        // Penalize standard printings when we want a special variant
+                        score -= 40;
+                    }
+                } else {
+                    // Standard variant: prefer normal/unlimited printings
+                    if (printing === "normal") score += 30;
+                    if (printing === "unlimited" || edition === "unlimited") score += 20;
+                }
+
+                // Finish matching
+                if (targetFinish && targetFinish !== "normal") {
+                    if (printing.includes(targetFinish) || printing.includes("foil") || printing.includes("holo")) {
+                        score += 40;
+                    }
+                }
+
+                score += Number(v?.price ?? 0) > 0 ? 5 : 0;
+                return { variant: v, score };
             })
             .sort((a, b) => b.score - a.score)[0]?.variant ?? variants[0]
     );
@@ -832,6 +862,167 @@ export const syncPrice = action({
             return { success: true, price: marketPrice };
         } catch (error) {
             console.error("SyncPrice Error:", error);
+            await ctx.runMutation(internal.prices.failSyncTask, {
+                cardId: args.cardId,
+                gameCode: args.gameCode,
+                completedAt: Date.now(),
+            });
+            return { success: false, error: String(error) };
+        }
+    },
+});
+
+/**
+ * Internal version of syncPrice callable from httpAction context.
+ * Accepts variant/finish for accurate pricing resolution.
+ */
+export const syncPriceInternal = internalAction({
+    args: {
+        cardId: v.string(),
+        gameCode: v.string(),
+        cardName: v.optional(v.string()),
+        setName: v.optional(v.string()),
+        number: v.optional(v.string()),
+        variant: v.optional(v.string()),
+        finish: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        await ctx.runMutation(api.prices.startSyncTask, {
+            cardId: args.cardId,
+            gameCode: args.gameCode,
+        });
+
+        try {
+            let marketPrice: number | undefined;
+            let lowPrice: number | undefined;
+            let midPrice: number | undefined;
+            let highPrice: number | undefined;
+            let source = "unknown";
+            let cardName = args.cardName ?? "Unknown Card";
+            let setName: string | undefined;
+            let imageUrl: string | undefined;
+            let rarity: string | undefined;
+            let historyPoints: PriceHistoryPoint[] = [];
+
+            const justTcg = await fetchJustTcgPrice(args);
+            if (justTcg) {
+                cardName = justTcg.cardName;
+                setName = justTcg.setName;
+                imageUrl = justTcg.imageUrl;
+                rarity = justTcg.rarity;
+                marketPrice = justTcg.marketPrice;
+                lowPrice = justTcg.lowPrice;
+                midPrice = justTcg.midPrice;
+                highPrice = justTcg.highPrice;
+                source = justTcg.source;
+                historyPoints = justTcg.history ?? [];
+            } else if (args.gameCode === "onepiece") {
+                const onePiece = await fetchOnePiecePrice({
+                    cardId: args.cardId,
+                    cardName: args.cardName,
+                });
+                cardName = onePiece.cardName;
+                setName = onePiece.setName;
+                imageUrl = onePiece.imageUrl;
+                rarity = onePiece.rarity;
+                marketPrice = onePiece.marketPrice;
+                source = onePiece.source;
+            } else if (args.gameCode === "pokemon") {
+                const response = await fetch(`https://api.pokemontcg.io/v2/cards/${args.cardId}`);
+                if (!response.ok) throw new Error(`PokemonTCG API error: ${response.status}`);
+                const data = await response.json();
+                const card = data.data;
+                cardName = card.name ?? cardName;
+                setName = card.set?.name;
+                imageUrl = card.images?.small;
+                rarity = card.rarity;
+                if (card.tcgplayer) {
+                    const priceType = card.tcgplayer.prices.holofoil
+                        || card.tcgplayer.prices.normal
+                        || card.tcgplayer.prices.reverseHolofoil;
+                    if (priceType) {
+                        marketPrice = priceType.market || priceType.mid;
+                        lowPrice = priceType.low;
+                        midPrice = priceType.mid;
+                        highPrice = priceType.high;
+                    }
+                    source = "tcgplayer";
+                }
+            } else if (args.gameCode === "yugioh") {
+                const response = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${args.cardId}`);
+                if (!response.ok) throw new Error(`YGOProDeck API error: ${response.status}`);
+                const data = await response.json();
+                const card = data.data[0];
+                cardName = card.name ?? cardName;
+                imageUrl = card.card_images?.[0]?.image_url_small;
+                rarity = card.race;
+                if (card.card_prices?.length > 0) {
+                    const prices = card.card_prices[0];
+                    marketPrice = parseFloat(prices.tcgplayer_price);
+                    source = "ygoprodeck";
+                }
+            } else if (args.gameCode === "mtg") {
+                let response = await fetch(`https://api.scryfall.com/cards/${args.cardId}`);
+                if (!response.ok) {
+                    const q = encodeURIComponent(args.cardName ?? args.cardId);
+                    response = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${q}`);
+                }
+                if (!response.ok) throw new Error(`Scryfall API error: ${response.status}`);
+                const card = await response.json();
+                cardName = card.name ?? cardName;
+                setName = card.set_name;
+                imageUrl = card.image_uris?.small ?? card.card_faces?.[0]?.image_uris?.small;
+                rarity = card.rarity;
+                const usd = Number(card.prices?.usd ?? card.prices?.usd_foil ?? card.prices?.usd_etched);
+                if (!Number.isFinite(usd) || usd <= 0) {
+                    throw new Error("No valid MTG USD price available");
+                }
+                marketPrice = usd;
+                source = "scryfall";
+            } else if (args.gameCode === "dragonball") {
+                const dragonBall = await fetchDragonBallPrice({
+                    cardId: args.cardId,
+                    cardName: args.cardName,
+                });
+                cardName = dragonBall.cardName;
+                setName = dragonBall.setName;
+                imageUrl = dragonBall.imageUrl;
+                rarity = dragonBall.rarity;
+                marketPrice = dragonBall.marketPrice;
+                source = dragonBall.source;
+            } else {
+                throw new Error(`Pricing unavailable for '${args.gameCode}'`);
+            }
+
+            if (!marketPrice || !Number.isFinite(marketPrice) || marketPrice <= 0) {
+                throw new Error(`No valid market price for ${args.gameCode}:${args.cardId}`);
+            }
+
+            await ctx.runMutation(api.prices.updatePriceData, {
+                cardId: args.cardId,
+                gameCode: args.gameCode,
+                cardName,
+                setName,
+                imageUrl,
+                rarity,
+                marketPrice,
+                lowPrice,
+                midPrice,
+                highPrice,
+                source,
+            });
+
+            if (historyPoints.length > 0) {
+                await ctx.runMutation(internal.prices.ingestHistoricalData, {
+                    cardId: args.cardId,
+                    gameCode: args.gameCode,
+                    points: historyPoints.slice(-180),
+                });
+            }
+
+            return { success: true, price: marketPrice };
+        } catch (error) {
+            console.error("syncPriceInternal Error:", error);
             await ctx.runMutation(internal.prices.failSyncTask, {
                 cardId: args.cardId,
                 gameCode: args.gameCode,

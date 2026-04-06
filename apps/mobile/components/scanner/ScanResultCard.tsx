@@ -97,11 +97,20 @@ export function ScanResultCard({
                     {scanResult.rarity}
                   </Text>
                 </View>
-                <View className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">
-                  <Text className="text-slate-text text-[10px] font-bold tracking-widest uppercase">
-                    {scanResult.providerUsed}
-                  </Text>
-                </View>
+                {scanResult.variant && scanResult.variant !== "Standard" && (
+                  <View className="px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-400/20">
+                    <Text className="text-sky-400 text-[10px] font-bold tracking-widest uppercase">
+                      {scanResult.variant}
+                    </Text>
+                  </View>
+                )}
+                {scanResult.finish && scanResult.finish !== "Normal" && (
+                  <View className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/20">
+                    <Text className="text-emerald-400 text-[10px] font-bold tracking-widest uppercase">
+                      {scanResult.finish}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <Text
@@ -115,15 +124,24 @@ export function ScanResultCard({
               </Text>
 
               <View className="flex-row items-center gap-2">
-                <Text className="text-light-slate text-2xl font-bold">
-                  ${scanResult.estimatedPriceUsd.toFixed(2)}
-                </Text>
-                <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10">
-                  <TrendingUpIcon size={12} style={{ color: "#10b981" }} />
-                  <Text className="text-[10px] font-bold text-emerald-400">
-                    Market
-                  </Text>
-                </View>
+                {scanResult.pricePending ? (
+                  <View className="flex-row items-center gap-2">
+                    <ActivityIndicator size="small" color={KadoColors.slateText} />
+                    <Text className="text-slate-text text-[13px] font-medium">Fetching price...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text className="text-light-slate text-2xl font-bold">
+                      ${scanResult.estimatedPriceUsd.toFixed(2)}
+                    </Text>
+                    <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10">
+                      <TrendingUpIcon size={12} style={{ color: "#10b981" }} />
+                      <Text className="text-[10px] font-bold text-emerald-400">
+                        Market
+                      </Text>
+                    </View>
+                  </>
+                )}
               </View>
             </View>
           </View>

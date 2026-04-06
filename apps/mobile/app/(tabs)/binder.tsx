@@ -260,92 +260,168 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
   const renderCardItem = useCallback(({ item, index }: { item: Card; index: number }) => {
     const isLeftEdge = index % numColumns === 0;
     const isNew = Date.now() - new Date(item.dateAdded).getTime() < 1000 * 60 * 60 * 24;
-    
-    const condition = item.condition || 'NM';
-    const conditionColor = condition === 'NM' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' 
-        : condition === 'LP' ? 'text-emerald-200 bg-emerald-200/10 border-emerald-200/20'
-        : condition === 'MP' ? 'text-amber-200 bg-amber-200/10 border-amber-200/20'
-        : 'text-rose-400 bg-rose-400/10 border-rose-400/20';
 
-    const finish = item.finish || 'Normal';
+    const condition = item.condition || "NM";
+    const finish = item.finish || "Normal";
+    const isFoil = finish !== "Normal";
+
+    const conditionColor =
+      condition === "NM" ? "#34d399"
+      : condition === "LP" ? "#a7f3d0"
+      : condition === "MP" ? "#fbbf24"
+      : "#fb7185";
 
     if (viewMode === "list") {
       return (
-        <Pressable 
-          onPress={() => handleCardPress(item)} 
-          className="flex-row items-center gap-4 p-3 border rounded-2xl active:scale-[0.99] transition-all bg-navy/40 border-white/5 mx-4 mb-3"
+        <Pressable
+          onPress={() => handleCardPress(item)}
+          style={{
+            flexDirection: "row", alignItems: "center", gap: 12,
+            marginHorizontal: 16, marginBottom: 8,
+            backgroundColor: "rgba(17,24,39,0.7)",
+            borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
+            borderRadius: 14, padding: 10,
+          }}
         >
-            <View className="w-12 h-16 bg-midnight rounded-md overflow-hidden shrink-0 border border-white/5 relative">
-                <Image source={{ uri: item.imageUrl }} style={{ width: "100%", height: "100%", opacity: 0.9 }} contentFit="cover" />
+          {/* Sleeve thumbnail */}
+          <View style={{
+            width: 44, height: 62, borderRadius: 6, overflow: "hidden",
+            backgroundColor: "#0a0f1c",
+            borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+          }}>
+            <Image source={{ uri: item.imageUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+            {/* Gloss specular on sleeve */}
+            <View style={{
+              position: "absolute", top: 0, left: 0,
+              width: "60%", height: "40%",
+              backgroundColor: "rgba(255,255,255,0.05)",
+              borderTopLeftRadius: 6,
+            }} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text style={{ color: "#ccd6f6", fontWeight: "700", fontSize: 13 }} numberOfLines={1}>{item.name}</Text>
+              {isFoil && <ZapIcon size={11} color="#fbbf24" fill="#fbbf24" />}
             </View>
-            <View className="flex-1 min-w-0">
-                <View className="flex-row items-center gap-2">
-                    <Text className="font-bold text-light-slate text-sm" numberOfLines={1}>{item.name}</Text>
-                    {(finish === 'Foil' || finish === 'Reverse Holo') && <ZapIcon size={12} color="#fbbf24" fill="#fbbf24" />}
-                </View>
-                <View className="flex-row items-center gap-1 text-xs mt-0.5">
-                    <Text className="text-slate-text text-xs" numberOfLines={1}>{item.set}</Text>
-                    <Text className="text-slate-text text-xs">•</Text>
-                    <Text className={`font-bold ${condition === 'NM' ? 'text-emerald-400' : 'text-slate-400'}`}>{condition}</Text>
-                </View>
-            </View>
-            <View className="items-end">
-                <Text className="font-bold text-umber text-sm">{formatUsd(item.price)}</Text>
-                <Text className="text-[10px] text-slate-text mt-0.5">Qty: {item.quantity || 1}</Text>
-            </View>
+            <Text style={{ color: "#64748b", fontSize: 11, marginTop: 1 }} numberOfLines={1}>{item.set}</Text>
+          </View>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={{ color: "#c7a77b", fontWeight: "700", fontSize: 13 }}>{formatUsd(item.price)}</Text>
+            <Text style={{ color: conditionColor, fontSize: 10, fontWeight: "600", marginTop: 2 }}>{condition}</Text>
+          </View>
         </Pressable>
       );
     }
 
+    // ── Grid: Binder Pocket ──────────────────────────────────────────────────
     return (
       <Pressable
         onPress={() => handleCardPress(item)}
         style={{ width: cardWidth, marginLeft: isLeftEdge ? 0 : CARD_GAP, marginBottom: CARD_GAP }}
-        className="active:scale-[0.98]"
       >
-        <View className="border p-1.5 rounded-md shadow-soft-lg bg-navy/40 border-white/5 relative overflow-hidden flex-col">
-            <View className={`aspect-[5/7] bg-black rounded-xl overflow-hidden relative shadow-inner w-full mb-2 ${isNew ? 'is-new' : ''}`}>
-               <Image 
-                 source={{ uri: item.imageUrl }} 
-                 style={{ width: "100%", height: "100%", borderRadius: 12, opacity: 0.9 }} 
-                 contentFit="cover" 
-                 transition={300} 
-               />
-               
-               {/* 1. Quantity (Top Left) */}
-               <View className="absolute top-1.5 left-1.5 z-20">
-                  <View className="bg-midnight/80 border border-white/10 px-1.5 py-0.5 rounded-full min-w-[20px] items-center shadow-lg">
-                      <Text className="text-light-slate text-[9px] font-bold">x{item.quantity || 1}</Text>
-                  </View>
-               </View>
-
-               {/* 2. Condition (Bottom Left) */}
-               <View className="absolute bottom-1.5 left-1.5 z-20">
-                  <View className={`border px-1.5 py-0.5 rounded shadow-lg ${conditionColor.split(' ')[1]} ${conditionColor.split(' ')[2]}`}>
-                     <Text className={`text-[8px] font-bold uppercase tracking-wider ${conditionColor.split(' ')[0]}`}>{condition}</Text>
-                  </View>
-               </View>
-
-               {/* 3. Variant (Bottom Right) */}
-               {finish !== 'Normal' && (
-                  <View className="absolute bottom-1.5 right-1.5 z-20">
-                      <View className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 items-center justify-center shadow-lg">
-                          {finish === 'Foil' ? <ZapIcon size={10} color="#fbbf24" fill="#fbbf24" /> : 
-                           finish === 'Reverse Holo' ? <Text className="text-amber-400 text-[8px] font-bold">RH</Text> : 
-                           <ScanIcon size={10} color="#fbbf24" />}
-                      </View>
-                  </View>
-               )}
-            </View>
-            
-            <View className="px-1 pb-0.5">
-                <Text className="font-bold text-[10px] text-light-slate" numberOfLines={1}>{item.name}</Text>
-                <View className="flex-row justify-between items-center mt-0.5">
-                    <Text className="text-[9px] text-slate-text uppercase tracking-wide font-medium flex-1 mr-2" numberOfLines={1}>{item.set}</Text>
-                    <Text className="text-[10px] font-bold text-umber">{formatUsd(item.price)}</Text>
+        {({ pressed }: any) => (
+          <View style={{
+            // The pocket itself — sunken, stitched feel
+            backgroundColor: "rgba(5,8,18,0.85)",
+            borderRadius: 8,
+            padding: 3,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.06)",
+            // Inset shadow via layered border trick
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.5,
+            shadowRadius: 4,
+            elevation: 4,
+            transform: [{ scale: pressed ? 0.96 : 1 }],
+          }}>
+            {/* Card image inside sleeve */}
+            <View style={{
+              aspectRatio: 5 / 7,
+              borderRadius: 5,
+              overflow: "hidden",
+              backgroundColor: "#060b17",
+            }}>
+              {item.imageUrl ? (
+                <Image
+                  source={{ uri: item.imageUrl }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : (
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0d1529" }}>
+                  <Text style={{ color: "#3d4f6e", fontSize: cardWidth * 0.28, fontWeight: "800" }}>
+                    {item.name?.charAt(0)?.toUpperCase() ?? "?"}
+                  </Text>
                 </View>
+              )}
+
+              {/* Plastic sleeve gloss overlay */}
+              <View
+                style={{
+                  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                  borderRadius: 5,
+                  // diagonal gloss streak
+                  backgroundColor: "transparent",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.09)",
+                }}
+              />
+              {/* Top-left specular highlight */}
+              <View style={{
+                position: "absolute", top: 0, left: 0,
+                width: "55%", height: "35%",
+                borderTopLeftRadius: 5,
+                backgroundColor: "rgba(255,255,255,0.04)",
+              }} />
+
+              {/* NEW badge */}
+              {isNew && (
+                <View style={{
+                  position: "absolute", top: 4, right: 4,
+                  backgroundColor: "#c7a77b", borderRadius: 4,
+                  paddingHorizontal: 4, paddingVertical: 1,
+                }}>
+                  <Text style={{ color: "#060b17", fontSize: 7, fontWeight: "800", letterSpacing: 0.5 }}>NEW</Text>
+                </View>
+              )}
+
+              {/* Foil lightning bolt */}
+              {isFoil && (
+                <View style={{ position: "absolute", top: 4, left: 4 }}>
+                  <ZapIcon size={10} color="#fbbf24" fill="#fbbf24" />
+                </View>
+              )}
+
+              {/* Condition dot — bottom right */}
+              <View style={{
+                position: "absolute", bottom: 4, right: 4,
+                width: 8, height: 8, borderRadius: 4,
+                backgroundColor: conditionColor,
+                shadowColor: conditionColor,
+                shadowOpacity: 0.8,
+                shadowRadius: 3,
+                elevation: 2,
+              }} />
             </View>
-        </View>
+
+            {/* Label below card — like a penciled name on sleeve */}
+            <View style={{ paddingHorizontal: 2, paddingTop: 4, paddingBottom: 1 }}>
+              <Text style={{ color: "#a8b2d8", fontSize: 9, fontWeight: "700", letterSpacing: 0.2 }} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 1 }}>
+                <Text style={{ color: "#3d4f6e", fontSize: 8, fontWeight: "600", flex: 1, marginRight: 4 }} numberOfLines={1}>
+                  {item.set}
+                </Text>
+                <Text style={{ color: "#c7a77b", fontSize: 9, fontWeight: "700" }}>
+                  {formatUsd(item.price)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
       </Pressable>
     );
   }, [handleCardPress, viewMode, cardWidth, numColumns]);
@@ -435,241 +511,270 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
           )}
         </View>
       ) : null}
-      <View className="px-5 pt-6 pb-4 max-w-[1320px] w-full self-center">
-          <View className="mb-6">
-            <View className="bg-navy/40 border border-white/5 rounded-2xl p-6 shadow-soft-lg flex-col gap-4 overflow-hidden">
+      <View style={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, maxWidth: 1320, width: "100%", alignSelf: "center", zIndex: 1 }}>
+          <View style={{ marginBottom: 20 }}>
+            {/* Embossed inside-cover nameplate */}
+            <View style={{
+              borderRadius: 16,
+              overflow: "hidden",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.06)",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.4,
+              shadowRadius: 12,
+              elevation: 8,
+            }}>
+              {/* Gold accent top stripe */}
+              <View style={{ height: 3, backgroundColor: "#c7a77b", opacity: 0.8 }} />
+
+              <View style={{
+                backgroundColor: "rgba(6,10,20,0.92)",
+                padding: 18,
+                gap: 12,
+              }}>
                 <View>
-                    <Text className="text-slate-text text-[10px] font-bold uppercase tracking-wider mb-1">Portfolio Value</Text>
-                    <Text className="text-3xl font-bold text-white tracking-tight font-mono">{formatUsd(portfolioStats.totalValue)}</Text>
+                  <Text style={{ color: "#3d4f6e", fontSize: 9, fontWeight: "800", letterSpacing: 1.6, textTransform: "uppercase", marginBottom: 4 }}>
+                    Portfolio Value
+                  </Text>
+                  <Text style={{ color: "#e2e8f0", fontSize: 32, fontWeight: "800", fontVariant: ["tabular-nums"], letterSpacing: -0.5 }}>
+                    {formatUsd(portfolioStats.totalValue)}
+                  </Text>
                 </View>
 
-                <View className="h-px self-stretch bg-white/5" />
+                <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.04)" }} />
 
-                <View className="flex-row items-stretch">
-                    <View className="flex-1 min-w-0 pr-3">
-                        <Text className="text-slate-text text-[10px] font-bold uppercase tracking-wider mb-1">7D Change</Text>
-                        <View className="flex-row items-center gap-1.5 flex-wrap">
-                            <TrendingUp size={14} color="#4ade80" />
-                            <Text className="text-sm font-bold font-mono text-emerald-400">+$124.50</Text>
-                        </View>
+                <View style={{ flexDirection: "row" }}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={{ color: "#3d4f6e", fontSize: 9, fontWeight: "800", letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 4 }}>
+                      7D Change
+                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                      <TrendingUp size={13} color="#4ade80" />
+                      <Text style={{ color: "#4ade80", fontSize: 14, fontWeight: "700" }}>+$124.50</Text>
                     </View>
-                    <View className="flex-1 min-w-0 pl-3">
-                        <Text className="text-slate-text text-[10px] font-bold uppercase tracking-wider mb-1">Collection</Text>
-                        <Text className="text-sm font-bold font-mono text-white">{cards.length}</Text>
-                    </View>
+                  </View>
+                  <View style={{ width: 1, backgroundColor: "rgba(255,255,255,0.04)" }} />
+                  <View style={{ flex: 1, paddingLeft: 12 }}>
+                    <Text style={{ color: "#3d4f6e", fontSize: 9, fontWeight: "800", letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 4 }}>
+                      Cards
+                    </Text>
+                    <Text style={{ color: "#ccd6f6", fontSize: 14, fontWeight: "700" }}>{cards.length}</Text>
+                  </View>
                 </View>
+              </View>
             </View>
           </View>
 
           {cards.length === 0 && (
-            <View className="mb-6 bg-[#171b2d] border border-white/5 rounded-2xl flex-row items-stretch overflow-hidden min-h-[220px]">
-                {/* Left Side: Illustration */}
-                <View className="w-[340px] items-center justify-center pt-8 pl-8 overflow-hidden bg-gradient-to-r from-transparent to-[#131623]">
-                    <Image source={require("../../assets/images/nano_banana_cards.png")} style={{width: 320, height: 210, transform: [{translateY: 10}, {translateX: -10}]}} contentFit="contain" />
+            <View style={{
+              marginBottom: 20,
+              backgroundColor: "#171b2d",
+              borderWidth: 1, borderColor: "rgba(255,255,255,0.05)",
+              borderRadius: 16,
+              overflow: "hidden",
+              minHeight: isDesktop ? 220 : undefined,
+              flexDirection: isDesktop ? "row" : "column",
+            }}>
+              {/* Illustration */}
+              <View style={{
+                alignItems: "center", justifyContent: "center",
+                paddingTop: isDesktop ? 24 : 24,
+                paddingHorizontal: isDesktop ? 0 : 0,
+                width: isDesktop ? 260 : "100%",
+                minHeight: isDesktop ? undefined : 160,
+              }}>
+                <Image
+                  source={require("../../assets/images/nano_banana_cards.png")}
+                  style={{ width: isDesktop ? 260 : 200, height: isDesktop ? 200 : 155 }}
+                  contentFit="contain"
+                />
+              </View>
+              {/* Text */}
+              <View style={{
+                flex: 1,
+                paddingVertical: isDesktop ? 36 : 20,
+                paddingHorizontal: isDesktop ? 28 : 20,
+                justifyContent: "center",
+              }}>
+                <Text style={{ fontSize: isDesktop ? 22 : 18, fontWeight: "700", color: "#fff", marginBottom: 6 }}>
+                  Add cards{" "}
+                  <Text style={{ fontWeight: "400", color: "#a8b2d8" }}>to organize and track your TCG collection</Text>
+                </Text>
+                <Text style={{ color: "#64748b", fontSize: 13, lineHeight: 22, marginBottom: 18 }}>
+                  Upload photos or scan your cards to add them to your binder.
+                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                  <Pressable
+                    onPress={() => router.push("/")}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 12, backgroundColor: "#c7a77b", minHeight: 44 }}
+                  >
+                    <MaximizeIcon size={15} color="#020617" />
+                    <Text style={{ color: "#020617", fontWeight: "700", fontSize: 13 }}>Scan or upload</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => Alert.alert("Import collection", "Bulk import from spreadsheets is on the roadmap.")}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 11, minHeight: 44 }}
+                  >
+                    <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Import collection</Text>
+                    <ChevronDownIcon size={13} color="#fff" />
+                  </Pressable>
                 </View>
-                {/* Right Side: Content */}
-                <View className="flex-1 py-10 px-8 justify-center">
-                    <Text className="text-2xl font-bold text-white mb-2 tracking-tight">
-                        Add cards <Text className="font-normal text-light-slate">to organize and track your TCG collection</Text>
-                    </Text>
-                    <Text className="text-slate-text text-sm leading-6 mb-5 max-w-[500px]">
-                        Upload photos or scan your cards to add them to your binder and start tracking value.
-                    </Text>
-                    <View className="flex-col items-start gap-3 mt-1">
-                        <Pressable onPress={() => router.push("/")} className="px-5 py-2.5 rounded-xl bg-[#c7a77b] flex-row items-center justify-center gap-2 active:scale-95 shadow-lg shadow-black/20">
-                            <MaximizeIcon size={16} color="#020617" />
-                            <UploadIcon size={16} color="#020617" />
-                            <Text className="text-[#020617] font-bold text-sm">Scan or upload</Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() =>
-                            Alert.alert(
-                              "Import collection",
-                              "Bulk import from spreadsheets and other apps is on the roadmap. For now, use Scan or upload to add cards one at a time or in batches from photos."
-                            )
-                          }
-                          className="flex-row items-center gap-1 opacity-90 pl-1"
-                        >
-                            <Text className="text-white font-medium text-[13px] tracking-wide">Import collection</Text>
-                            <ChevronDownIcon size={14} color="#ffffff" />
-                        </Pressable>
-                    </View>
-                </View>
+              </View>
             </View>
           )}
 
           {/* ── Toolbar row ── */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
-
-            {/* Collection filter dropdown */}
-            <DesktopDropdown
-              title="Collection"
-              subtitle="Show cards from one game or all"
-              selectedId={activeTab}
-              onSelect={(id) => setActiveTab(id)}
-              panelWidth={260}
-              options={[
-                { id: "All", label: "All cards", sub: "Every game in your binder" },
-                ...gameFilterOptions.map((code) => ({ id: code, label: getGameLabel(code) })),
-              ]}
-              trigger={
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    paddingHorizontal: 12,
-                    height: 38,
-                    backgroundColor: "rgba(10,15,28,0.5)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.08)",
-                    borderRadius: 10,
-                    ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
-                  }}
-                >
-                  <BookOpenIcon size={14} color={KadoColors.slateText} />
-                  <Text style={{ color: "#ccd6f6", fontSize: 13, fontWeight: "600" }}>
-                    {activeTab === "All" ? "All Cards" : getGameLabel(activeTab)}
-                  </Text>
-                  <ChevronDownIcon size={13} color={KadoColors.slateText} />
-                </View>
-              }
-            />
-
-            {/* Sort dropdown */}
-            <DesktopDropdown
-              title="Sort by"
-              selectedId={sortBy}
-              onSelect={(id) => setSortBy(id as SortBy)}
-              panelWidth={220}
-              options={[
-                { id: "dateAdded", label: "Date added", sub: "Newest first" },
-                { id: "name", label: "Name", sub: "A → Z" },
-                { id: "price", label: "Price", sub: "High → low" },
-              ]}
-              trigger={
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    paddingHorizontal: 12,
-                    height: 38,
-                    backgroundColor: "rgba(10,15,28,0.5)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.08)",
-                    borderRadius: 10,
-                    ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
-                  }}
-                >
-                  <SlidersHorizontalIcon size={14} color={KadoColors.slateText} />
-                  <Text style={{ color: "#ccd6f6", fontSize: 13, fontWeight: "600" }}>
-                    {{ dateAdded: "Date added", name: "Name", price: "Price" }[sortBy]}
-                  </Text>
-                  <ChevronDownIcon size={13} color={KadoColors.slateText} />
-                </View>
-              }
-            />
-
-            {/* Search input — grows to fill remaining space */}
-            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", position: "relative" }}>
-              <View style={{ position: "absolute", left: 10, zIndex: 1 }}>
-                <SearchIcon size={14} color={KadoColors.slateText} />
-              </View>
-              <TextInput
-                placeholder="Search binder…"
-                placeholderTextColor="rgba(136,146,176,0.4)"
-                style={{
-                  flex: 1,
-                  height: 38,
-                  backgroundColor: "rgba(10,15,28,0.5)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.08)",
-                  borderRadius: 10,
-                  paddingLeft: 32,
-                  paddingRight: 12,
-                  fontSize: 13,
-                  color: "#ccd6f6",
-                }}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
+          {isDesktop ? (
+            // Desktop: single row
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <DesktopDropdown
+                title="Collection"
+                subtitle="Show cards from one game or all"
+                selectedId={activeTab}
+                onSelect={(id) => setActiveTab(id)}
+                panelWidth={260}
+                options={[
+                  { id: "All", label: "All cards", sub: "Every game in your binder" },
+                  ...gameFilterOptions.map((code) => ({ id: code, label: getGameLabel(code) })),
+                ]}
+                trigger={
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                    <BookOpenIcon size={14} color={KadoColors.slateText} />
+                    <Text style={{ color: "#ccd6f6", fontSize: 13, fontWeight: "600" }}>{activeTab === "All" ? "All Cards" : getGameLabel(activeTab)}</Text>
+                    <ChevronDownIcon size={13} color={KadoColors.slateText} />
+                  </View>
+                }
               />
+              <DesktopDropdown
+                title="Sort by"
+                selectedId={sortBy}
+                onSelect={(id) => setSortBy(id as SortBy)}
+                panelWidth={220}
+                options={[
+                  { id: "dateAdded", label: "Date added", sub: "Newest first" },
+                  { id: "name", label: "Name", sub: "A → Z" },
+                  { id: "price", label: "Price", sub: "High → low" },
+                ]}
+                trigger={
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                    <SlidersHorizontalIcon size={14} color={KadoColors.slateText} />
+                    <Text style={{ color: "#ccd6f6", fontSize: 13, fontWeight: "600" }}>{{ dateAdded: "Date added", name: "Name", price: "Price" }[sortBy]}</Text>
+                    <ChevronDownIcon size={13} color={KadoColors.slateText} />
+                  </View>
+                }
+              />
+              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", position: "relative" }}>
+                <View style={{ position: "absolute", left: 10, zIndex: 1 }}><SearchIcon size={14} color={KadoColors.slateText} /></View>
+                <TextInput placeholder="Search binder…" placeholderTextColor="rgba(136,146,176,0.4)" style={{ flex: 1, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingLeft: 32, paddingRight: 12, fontSize: 13, color: "#ccd6f6" }} value={searchQuery} onChangeText={setSearchQuery} />
+              </View>
+              <View style={{ flexDirection: "row", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, height: 44, overflow: "hidden" }}>
+                {(["list", "grid"] as const).map((mode) => (
+                  <Pressable key={mode} onPress={() => setViewMode(mode)} style={{ width: 44, height: "100%", alignItems: "center", justifyContent: "center", backgroundColor: viewMode === mode ? "rgba(255,255,255,0.1)" : "transparent" }}>
+                    {mode === "list" ? <ListIcon size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} /> : <LayoutGrid size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} />}
+                  </Pressable>
+                ))}
+              </View>
+              <Pressable onPress={() => void exportBinderCsv()} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                <ExternalLinkIcon size={15} color={KadoColors.slateText} />
+              </Pressable>
             </View>
-
-            {/* View-mode segmented control */}
-            <View
-              style={{
-                flexDirection: "row",
-                backgroundColor: "rgba(10,15,28,0.5)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
-                borderRadius: 10,
-                height: 38,
-                overflow: "hidden",
-              }}
-            >
-              {(["list", "grid"] as const).map((mode) => (
-                <Pressable
-                  key={mode}
-                  onPress={() => setViewMode(mode)}
-                  style={({ hovered }: any) => ({
-                    width: 36,
-                    height: "100%",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor:
-                      viewMode === mode
-                        ? "rgba(255,255,255,0.1)"
-                        : hovered && Platform.OS === "web"
-                        ? "rgba(255,255,255,0.05)"
-                        : "transparent",
-                    ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
-                  })}
-                >
-                  {mode === "list" ? (
-                    <ListIcon size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} />
-                  ) : (
-                    <LayoutGrid size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} />
-                  )}
+          ) : (
+            // Mobile: two rows — filters + view toggle on top, search full-width below
+            <View style={{ gap: 8, marginBottom: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <DesktopDropdown
+                  title="Collection"
+                  subtitle="Show cards from one game or all"
+                  selectedId={activeTab}
+                  onSelect={(id) => setActiveTab(id)}
+                  panelWidth={240}
+                  options={[
+                    { id: "All", label: "All cards", sub: "Every game in your binder" },
+                    ...gameFilterOptions.map((code) => ({ id: code, label: getGameLabel(code) })),
+                  ]}
+                  trigger={
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                      <BookOpenIcon size={13} color={KadoColors.slateText} />
+                      <Text style={{ color: "#ccd6f6", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>{activeTab === "All" ? "All" : getGameLabel(activeTab)}</Text>
+                      <ChevronDownIcon size={12} color={KadoColors.slateText} />
+                    </View>
+                  }
+                />
+                <DesktopDropdown
+                  title="Sort by"
+                  selectedId={sortBy}
+                  onSelect={(id) => setSortBy(id as SortBy)}
+                  panelWidth={200}
+                  options={[
+                    { id: "dateAdded", label: "Date added", sub: "Newest first" },
+                    { id: "name", label: "Name", sub: "A → Z" },
+                    { id: "price", label: "Price", sub: "High → low" },
+                  ]}
+                  trigger={
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                      <SlidersHorizontalIcon size={13} color={KadoColors.slateText} />
+                      <Text style={{ color: "#ccd6f6", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>{{ dateAdded: "Date", name: "Name", price: "Price" }[sortBy]}</Text>
+                      <ChevronDownIcon size={12} color={KadoColors.slateText} />
+                    </View>
+                  }
+                />
+                <View style={{ flex: 1 }} />
+                {/* View toggle */}
+                <View style={{ flexDirection: "row", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, height: 44, overflow: "hidden" }}>
+                  {(["list", "grid"] as const).map((mode) => (
+                    <Pressable key={mode} onPress={() => setViewMode(mode)} style={{ width: 44, height: "100%", alignItems: "center", justifyContent: "center", backgroundColor: viewMode === mode ? "rgba(255,255,255,0.1)" : "transparent" }}>
+                      {mode === "list" ? <ListIcon size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} /> : <LayoutGrid size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} />}
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable onPress={() => void exportBinderCsv()} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                  <ExternalLinkIcon size={15} color={KadoColors.slateText} />
                 </Pressable>
-              ))}
+              </View>
+              {/* Search — full width row */}
+              <View style={{ flexDirection: "row", alignItems: "center", position: "relative" }}>
+                <View style={{ position: "absolute", left: 10, zIndex: 1 }}><SearchIcon size={14} color={KadoColors.slateText} /></View>
+                <TextInput placeholder="Search binder…" placeholderTextColor="rgba(136,146,176,0.4)" style={{ flex: 1, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingLeft: 32, paddingRight: 12, fontSize: 13, color: "#ccd6f6" }} value={searchQuery} onChangeText={setSearchQuery} />
+              </View>
             </View>
-
-            {/* Export */}
-            <Pressable
-              onPress={() => void exportBinderCsv()}
-              accessibilityLabel="Export binder as CSV"
-              style={({ hovered }: any) => ({
-                width: 38,
-                height: 38,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor:
-                  hovered && Platform.OS === "web"
-                    ? "rgba(255,255,255,0.07)"
-                    : "rgba(10,15,28,0.5)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
-                borderRadius: 10,
-                ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
-              })}
-            >
-              <ExternalLinkIcon size={15} color={KadoColors.slateText} />
-            </Pressable>
-          </View>
+          )}
       </View>
-      <View className="flex-1 w-full max-w-[1320px] self-center">
-        <FlatList
-          data={filteredCards}
-          renderItem={renderCardItem}
-          keyExtractor={(item) => item.id}
-          numColumns={viewMode === "grid" ? numColumns : 1}
-          key={`${viewMode}-${numColumns}`}
-          contentContainerStyle={{ paddingHorizontal: viewMode === "grid" ? GRID_PADDING : 0, paddingTop: 6, paddingBottom: 24, flexGrow: 1 }}
-          ListEmptyComponent={renderEmptyState}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={KadoColors.umber} colors={[KadoColors.umber]} />}
-        />
+      {/* ── Binder Page ─────────────────────────────────────────────────────── */}
+      <View style={{ flex: 1, width: "100%", maxWidth: 1320, alignSelf: "center", flexDirection: "row" }}>
+
+        {/* Ring holes — only visible on desktop where we have space */}
+        {isDesktop && (
+          <View style={{ width: 20, alignItems: "center", justifyContent: "space-evenly", paddingVertical: 32 }}>
+            {[0,1,2,3].map((i) => (
+              <View key={i} style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "rgba(0,0,0,0.6)", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", shadowColor: "#000", shadowOpacity: 0.8, shadowRadius: 3, elevation: 2 }} />
+            ))}
+          </View>
+        )}
+
+        {/* Page surface */}
+        <View style={{ flex: 1, backgroundColor: "rgba(8,12,24,0.9)", borderLeftWidth: isDesktop ? 1 : 0, borderRightWidth: isDesktop ? 1 : 0, borderColor: "rgba(255,255,255,0.04)" }}>
+          <FlatList
+            data={filteredCards}
+            renderItem={renderCardItem}
+            keyExtractor={(item) => item.id}
+            numColumns={viewMode === "grid" ? numColumns : 1}
+            key={`${viewMode}-${numColumns}`}
+            contentContainerStyle={{ paddingHorizontal: viewMode === "grid" ? GRID_PADDING : 0, paddingTop: 12, paddingBottom: 32, flexGrow: 1 }}
+            ListEmptyComponent={renderEmptyState}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={KadoColors.umber} colors={[KadoColors.umber]} />}
+          />
+        </View>
+
+        {/* Ring holes — right side, desktop only */}
+        {isDesktop && (
+          <View style={{ width: 20, alignItems: "center", justifyContent: "space-evenly", paddingVertical: 32 }}>
+            {[0,1,2,3].map((i) => (
+              <View key={i} style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "rgba(0,0,0,0.6)", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", shadowColor: "#000", shadowOpacity: 0.8, shadowRadius: 3, elevation: 2 }} />
+            ))}
+          </View>
+        )}
       </View>
 
     </SafeAreaView>

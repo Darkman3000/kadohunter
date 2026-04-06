@@ -227,15 +227,29 @@ export default function ScannerScreen() {
   );
 
   const handleOpenSettings = useCallback(() => {
+    // Try the standard Expo method first, then fall back to explicit Android URI
     Linking.openSettings().catch(() => {
-      Alert.alert(
-        "Open Settings",
-        "Enable camera or photo library access in your device settings."
-      );
+      // On some Android builds, openSettings may fail — try explicit intent
+      Linking.openURL("app-settings:").catch(() => {
+        Alert.alert(
+          "Open Settings Manually",
+          "Go to your phone Settings → Apps → Kado Hunter → Permissions → Camera → Allow."
+        );
+      });
     });
   }, []);
 
+  const [isWebCameraRequested, setIsWebCameraRequested] = useState(false);
+
   const handlePermissionRequest = useCallback(async () => {
+    if (Platform.OS === "web") {
+      // expo-camera's permission hook state is buggy on web. 
+      // Bypassing the guard allows CameraView to mount, which natively 
+      // forces the browser to prompt the user for permission.
+      setIsWebCameraRequested(true);
+      return;
+    }
+
     if (permission?.canAskAgain) {
       const response = await requestPermission();
       if (!response.granted && !response.canAskAgain) {
@@ -243,7 +257,7 @@ export default function ScannerScreen() {
       }
       return;
     }
-
+    // Already denied — must go to settings
     handleOpenSettings();
   }, [handleOpenSettings, permission?.canAskAgain, requestPermission]);
 
@@ -295,7 +309,7 @@ export default function ScannerScreen() {
     try {
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.8,
+        quality: 0.5,
         skipProcessing: true,
       });
 
@@ -408,8 +422,8 @@ export default function ScannerScreen() {
           rarity: scanResult.rarity,
           number: scanResult.number,
           condition: "NM",
-          foil: false,
-          finish: "Normal",
+          foil: scanResult.finish !== "Normal", // Check if foil
+          finish: scanResult.finish ?? "Normal",
           marketTrend: "stable",
           estimatedPrice: scanResult.estimatedPriceUsd,
           imageUrl: scanResult.imageUrl ?? undefined,
@@ -466,6 +480,29 @@ export default function ScannerScreen() {
     activeSession?._id,
   ]);
 
+  // Subscribe to real price via Convex reactivity if the scan result is pending pricing
+  const realPriceData = useQuery(
+    api.prices.getLatestPrice,
+    scanResult?.cardId && scanResult?.pricePending
+      ? { cardId: scanResult.cardId, gameCode: scanResult.game }
+      : "skip"
+  );
+
+  useEffect(() => {
+    // When the real price arrives, update the scanResult state
+    if (realPriceData && scanResult && scanResult.pricePending) {
+      setScanResult((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          estimatedPriceUsd: realPriceData.marketPrice,
+          pricePending: false, // Stop polling
+          imageUrl: realPriceData.imageUrl || prev.imageUrl, // Also take image if we found a better one
+        };
+      });
+    }
+  }, [realPriceData, scanResult]);
+
   if (!permission) {
     return (
       <SafeAreaView
@@ -479,7 +516,8 @@ export default function ScannerScreen() {
     );
   }
 
-  if (!permission.granted) {
+  // On web, if the user clicked the button, bypass the guard and let CameraView mount
+  if (!permission.granted && !(Platform.OS === "web" && isWebCameraRequested)) {
     return (
       <SafeAreaView
         style={{ flex: 1, backgroundColor: KadoColors.midnight }}
@@ -513,10 +551,11 @@ export default function ScannerScreen() {
             </Pressable>
             <Pressable
               onPress={handlePermissionRequest}
-              className="mt-4 px-4 py-2 active:scale-95"
+              className="w-full max-w-[220px] flex-row items-center justify-center gap-2 px-6 py-3 mt-3 rounded-xl active:scale-95"
+              style={{ backgroundColor: KadoColors.umber }}
             >
-              <Text className="text-slate-text text-sm font-semibold">
-                {permission.canAskAgain ? "Grant Permission" : "Open Settings"}
+              <Text className="text-midnight font-bold text-sm">
+                {permission.canAskAgain ? "Grant Camera Access" : "Open Settings"}
               </Text>
             </Pressable>
           </View>

@@ -87,16 +87,19 @@ http.route({
                     },
                   },
                   {
-                    text: `Identify this trading card. Return a JSON object with these fields:
+                    text: `Identify this trading card. Pay careful attention to the exact printing/variant — cards with the same number can have vastly different values depending on whether they are Standard, Alternate Art, Parallel, Full Art, Manga Art, Secret Rare, etc.
+
+Return a JSON object with these fields:
 - name (string): The card's name
 - set (string): The set or expansion name
-- rarity (string): The rarity level
-- number (string): The card number (e.g. "102/165")
-- estimatedPriceUsd (number): Estimated market price in USD
+- rarity (string): The rarity level (e.g. "Common", "Rare", "Secret Rare", "Super Rare")
+- number (string): The card number (e.g. "OP01-016", "102/165")
+- variant (string): The exact printing variant. One of: "Standard", "Alternate Art", "Parallel", "Full Art", "Manga Art", "Secret Rare", "Promo", "Special Art Rare". Use "Standard" if it is the regular/normal printing.
+- finish (string): The card's finish. One of: "Normal", "Foil", "Holo", "Reverse Holo", "Textured". Use "Normal" for non-foil cards.
 - game (string): One of "pokemon", "yugioh", "onepiece", "mtg", "dragonball"
 - confidence (number): Your confidence from 0.0 to 1.0
 
-If you cannot identify the card clearly, still make your best guess and set confidence low.`,
+Do NOT estimate the price. Focus only on accurate identification of the card name, set, number, variant, and finish.`,
                   },
                 ],
               },
@@ -110,7 +113,8 @@ If you cannot identify the card clearly, still make your best guess and set conf
                   set: { type: "STRING" },
                   rarity: { type: "STRING" },
                   number: { type: "STRING" },
-                  estimatedPriceUsd: { type: "NUMBER" },
+                  variant: { type: "STRING" },
+                  finish: { type: "STRING" },
                   game: { type: "STRING" },
                   confidence: { type: "NUMBER" },
                 },
@@ -145,20 +149,55 @@ If you cannot identify the card clearly, still make your best guess and set conf
 
       const cardName = parsed.name ?? "Unknown Card";
       const cardGame = parsed.game ?? "unknown";
+      const variant = parsed.variant ?? "Standard";
+      const finish = parsed.finish ?? "Normal";
 
-      // Resolve card image from external APIs (shared utility)
-      const imageUrl = await resolveImageUrl(cardGame, cardName);
+      // Fire image resolution in background — don't block the response
+      const imageUrlPromise = resolveImageUrl(cardGame, cardName).catch(() => undefined);
+
+      // Build a deterministic cardId that includes variant for pricing lookups
+      const cardIdParts = [cardGame, cardName, parsed.set, parsed.number]
+        .filter(Boolean)
+        .join("-")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      const cardId = cardIdParts || `scan-${Date.now().toString(36)}`;
+
+      // Schedule real price sync via Convex action (non-blocking)
+      // The client will subscribe to the prices table and get the real price reactively
+      void ctx.runAction(internal.prices.syncPriceInternal, {
+        cardId,
+        gameCode: cardGame,
+        cardName,
+        setName: parsed.set,
+        number: parsed.number,
+        variant,
+        finish,
+      }).catch((err: unknown) => {
+        console.error("Background price sync failed:", err);
+      });
+
+      // Wait for image URL (with a short timeout so we don't block too long)
+      const imageUrl = await Promise.race([
+        imageUrlPromise,
+        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 2000)),
+      ]);
 
       const result = {
         name: cardName,
         set: parsed.set ?? "Unknown Set",
         rarity: parsed.rarity ?? "Common",
         number: parsed.number ?? "---",
-        estimatedPriceUsd: parsed.estimatedPriceUsd ?? 0,
+        variant,
+        finish,
+        estimatedPriceUsd: 0, // Real price arrives via Convex reactivity
         game: cardGame,
         confidence: parsed.confidence ?? 0.5,
         providerUsed: "gemini",
         imageUrl,
+        cardId, // Return the cardId so the client can subscribe to prices
+        pricePending: true, // Signal to the client that real price is being fetched
       };
 
       return new Response(JSON.stringify(result), {
