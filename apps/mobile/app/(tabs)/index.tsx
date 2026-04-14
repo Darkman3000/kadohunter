@@ -25,7 +25,7 @@ import {
   Sparkles,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import {
   cancelAnimation,
   Easing,
@@ -44,7 +44,7 @@ import {
   recognitionService,
   type RecognitionResult,
 } from "@/services/recognition";
-import { ScanResultCard, ScannerFrame, ScanModeSelector, type ScanMode } from "../../components/scanner";
+import { ScanResultCard, ScannerFrame, ScanModeSelector, type ScanMode, DesktopDropzone } from "../../components/scanner";
 import { scanLimits } from "@kado/domain";
 
 const FREE_SCAN_LIMIT = scanLimits.free;
@@ -123,14 +123,14 @@ const getPermissionErrorMessage = (error: unknown) => {
 export default function ScannerScreen() {
   const router = useRouter();
   const { width: winW } = useWindowDimensions();
-  const { isDesktop, availableWidth } = useResponsiveLayout();
+  const { isDesktop, isLargeDesktop, availableWidth } = useResponsiveLayout();
   const { frameWidth, frameHeight } = useMemo(() => {
-    const isDesktopWeb = Platform.OS === "web" && winW >= BREAKPOINTS.DESKTOP;
+    const isDesktopWeb = Platform.OS === "web" && isLargeDesktop;
     const base = isDesktopWeb ? availableWidth : winW;
     const fw = Math.min(base * (isDesktopWeb ? 0.42 : 0.72), isDesktopWeb ? 480 : 300);
     const fh = fw * 1.25;
     return { frameWidth: fw, frameHeight: fh };
-  }, [winW, availableWidth]);
+  }, [winW, availableWidth, isLargeDesktop]);
   const { viewMode, scanId, sessionId } = useLocalSearchParams();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -161,7 +161,10 @@ export default function ScannerScreen() {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<RecognitionResult | null>(null);
   const [scanMode, setScanMode] = useState<ScanMode>("Binder");
+  const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
+  const [useDesktopWebcam, setUseDesktopWebcam] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const fetchUrlAsBase64 = useAction(api.images.fetchUrlAsBase64);
   const saveToStaged = useMutation(api.users.saveToStaged);
   const scanLineOffset = useSharedValue(frameHeight * 0.16);
 
@@ -403,6 +406,100 @@ export default function ScannerScreen() {
     showFeedback,
   ]);
 
+  const handleDesktopFileOrUrl = useCallback(async (fileOrBase64: File | string, method: "drop" | "upload" | "paste") => {
+    if (isScanning || isSaving) return;
+
+    setScanResult(null);
+    setFeedback(null);
+    
+    try {
+      if (typeof fileOrBase64 === "string" && !fileOrBase64.startsWith("http")) { // Directly passed base64 bytes
+        await runRecognition(fileOrBase64, method === "paste" ? "gallery" : "camera");
+        return;
+      }
+      
+      if (typeof fileOrBase64 === "string" && fileOrBase64.startsWith("http")) { // URL proxy paste
+         setIsScanning(true);
+         const base64Data = await fetchUrlAsBase64({ url: fileOrBase64 });
+         setPreviewUri(`data:image/jpeg;base64,${base64Data}`);
+         await runRecognition(base64Data, "gallery");
+         return;
+      }
+      
+      const file = fileOrBase64 as File;
+      const reader = new FileReader();
+
+      reader.onload = async () => {
+        const raw = reader.result as string;
+        setPreviewUri(raw); 
+
+        const compressed = await manipulateAsync(
+          raw,
+          [{ resize: { width: 640 } }],
+          { compress: 0.6, format: SaveFormat.JPEG, base64: true }
+        );
+
+        if (!compressed.base64) {
+          throw new Error("Selected image could not be read or compressed.");
+        }
+
+        await runRecognition(compressed.base64, "gallery");
+      };
+      
+      reader.onerror = () => {
+        setIsScanning(false);
+        showFeedback("error", "Error reading dropped file");
+      }
+
+      reader.readAsDataURL(file);
+    } catch (err: unknown) {
+       setIsScanning(false);
+       let errMsg = "Could not process image";
+       if (err instanceof Error) errMsg = err.message;
+       showFeedback("error", errMsg);
+    }
+  }, [isScanning, isSaving, fetchUrlAsBase64, runRecognition, showFeedback]);
+
+  // Global Paste Interceptor for Web Desktop
+  useEffect(() => {
+    if (Platform.OS !== "web" || !isLargeDesktop) return;
+
+    const handlePasteEvent = async (e: any) => {
+      // e defaults to any type to avoid native TS compilation errors involving ClipboardEvent
+      const clipboardEvent = e as Event & { clipboardData?: { files: FileList, getData: (format: string) => string } };
+      
+      // Ignore if user is typing into an input
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
+        return;
+      }
+      
+      if (isScanning) return;
+      
+      // Case A: Image File inside clipboard
+      const files = Array.from(clipboardEvent.clipboardData?.files ?? []);
+      const imageFile = files.find(f => f.type.startsWith("image/"));
+      
+      if (imageFile) {
+        handleDesktopFileOrUrl(imageFile, "paste");
+        return;
+      }
+
+      // Case B: HTTP string inside clipboard
+      const pastedText = clipboardEvent.clipboardData?.getData("text/plain")?.trim();
+      if (pastedText && (pastedText.startsWith("http://") || pastedText.startsWith("https://"))) {
+        
+        // Show scanning state instantly for networking operation
+        setIsScanning(true);
+        handleDesktopFileOrUrl(pastedText, "paste");
+      }
+    };
+    
+    document.addEventListener("paste", handlePasteEvent);
+    return () => {
+      document.removeEventListener("paste", handlePasteEvent);
+    };
+  }, [isLargeDesktop, isScanning, handleDesktopFileOrUrl]);
+
   const handleDismissResult = useCallback(() => {
     setScanResult(null);
     setPreviewUri(null);
@@ -592,7 +689,7 @@ export default function ScannerScreen() {
       style={{ flex: 1, backgroundColor: KadoColors.midnight }}
       edges={["top"]}
     >
-      {isDesktop && (
+      {isLargeDesktop && (
         <View
           style={{
             paddingHorizontal: 40,
@@ -608,18 +705,64 @@ export default function ScannerScreen() {
           <Text style={{ color: "#ccd6f6", fontSize: 22, fontWeight: "800" }}>Scan Card</Text>
         </View>
       )}
-      <View style={{ flex: 1, flexDirection: isDesktop ? "row" : "column" }}>
-        {/* Camera pane */}
+      <View style={{ flex: 1, flexDirection: isLargeDesktop ? "row" : "column" }}>
+        {/* Camera pane / Desktop Dropzone branch */}
         <View style={{ flex: 1, position: "relative" }}>
-        <CameraView
-          ref={cameraRef}
-          style={{ flex: 1 }}
-          facing="back"
-          mode="picture"
-        >
-          <View className="absolute inset-0 bg-midnight/10" />
+        {isLargeDesktop && !useDesktopWebcam ? (
+          <View className="flex-1 flex-col justify-between">
+            <View className="flex-row justify-between items-start px-6 pt-6 absolute w-full top-0 z-10">
+               <View className="px-5 py-2.5 rounded-full bg-black/60 border border-umber/30 backdrop-blur-md">
+                <Text className="text-umber text-[11px] font-bold tracking-[0.22em] uppercase">
+                  Scanner Interface
+                </Text>
+              </View>
+            </View>
+            
+            {feedback && (
+              <View className="absolute top-20 left-4 right-4 z-20">
+                <View
+                  className={`flex-row items-center gap-3 rounded-2xl border px-4 py-3 ${
+                    feedback.kind === "error"
+                      ? "border-rose-400/30 bg-rose-500/15"
+                      : feedback.kind === "warning"
+                        ? "border-amber-400/30 bg-amber-500/15"
+                        : feedback.kind === "info"
+                          ? "border-sky-400/30 bg-sky-500/15"
+                        : "border-emerald-400/30 bg-emerald-500/15"
+                  }`}
+                >
+                  {/* ... reusing feedback component ... */}
+                  <Text className="flex-1 text-light-slate text-sm font-medium">
+                    {feedback.message}
+                  </Text>
+                </View>
+              </View>
+            )}
 
-          <View className="flex-1 justify-between">
+            <DesktopDropzone 
+              isScanning={isScanning}
+              onImageCaptured={handleDesktopFileOrUrl}
+              onToggleWebcam={() => setUseDesktopWebcam(true)}
+            />
+            
+            {/* Desktop drops scan mode below the dropzone */}
+            <View className="mb-8">
+              <ScanModeSelector
+                scanMode={scanMode}
+                onModeChange={setScanMode}
+              />
+            </View>
+          </View>
+        ) : (
+          <CameraView
+            ref={cameraRef}
+            style={{ flex: 1 }}
+            facing={cameraFacing}
+            mode="picture"
+          >
+            <View className="absolute inset-0 bg-midnight/10" />
+
+            <View className="flex-1 justify-between">
             <View className="flex-row justify-between items-start px-6 pt-6">
               <View className="px-5 py-2.5 rounded-full bg-black/60 border border-umber/30">
                 <Text className="text-umber text-[11px] font-bold tracking-[0.22em] uppercase">
@@ -628,10 +771,10 @@ export default function ScannerScreen() {
               </View>
 
               <View className="flex-row items-center gap-3">
-                <Pressable className="w-10 h-10 rounded-xl bg-black/60 border border-white/10 items-center justify-center active:scale-95">
+                <Pressable onPress={handleUpload} disabled={isScanning || isSaving} className="w-10 h-10 rounded-xl bg-black/60 border border-white/10 items-center justify-center active:scale-95">
                   <HistoryIcon size={18} color={KadoColors.lightSlate} />
                 </Pressable>
-                <Pressable className="w-10 h-10 rounded-xl bg-black/60 border border-white/10 items-center justify-center active:scale-95">
+                <Pressable onPress={() => setCameraFacing(prev => prev === "back" ? "front" : "back")} disabled={isScanning || isSaving} className="w-10 h-10 rounded-xl bg-black/60 border border-white/10 items-center justify-center active:scale-95">
                   <FlipIcon size={18} color={KadoColors.lightSlate} />
                 </Pressable>
               </View>
@@ -727,10 +870,11 @@ export default function ScannerScreen() {
             </View>
           </View>
         </CameraView>
+        )}
 
         </View>
 
-        {(scanResult || previewUri) && !isDesktop && (
+        {(scanResult || previewUri) && !isLargeDesktop && (
           <ScanResultCard
             scanResult={scanResult}
             previewUri={previewUri}
@@ -745,7 +889,7 @@ export default function ScannerScreen() {
         )}
 
         {/* Desktop: result panel shown in a right sidebar */}
-        {isDesktop && (scanResult || previewUri) && (
+        {isLargeDesktop && (scanResult || previewUri) && (
           <View
             style={{
               width: 360,

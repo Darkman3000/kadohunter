@@ -13,6 +13,7 @@ import type * as engine from "../engine.js";
 import type * as friends from "../friends.js";
 import type * as http from "../http.js";
 import type * as imageBackfill from "../imageBackfill.js";
+import type * as images from "../images.js";
 import type * as notifications from "../notifications.js";
 import type * as prices from "../prices.js";
 import type * as sessions from "../sessions.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   friends: typeof friends;
   http: typeof http;
   imageBackfill: typeof imageBackfill;
+  images: typeof images;
   notifications: typeof notifications;
   prices: typeof prices;
   sessions: typeof sessions;

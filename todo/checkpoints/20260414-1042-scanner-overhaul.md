@@ -1,0 +1,1 @@
+Summary: Finalized Desktop Scanner Overhaul including drag-and-drop, global paste (URLs/Images), and auth-gated Convex proxy. Fixed TS transition errors and encoding issues.
