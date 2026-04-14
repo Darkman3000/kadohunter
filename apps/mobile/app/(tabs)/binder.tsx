@@ -17,6 +17,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
 import {
+  ArrowUp,
+  ArrowDown,
   ArrowUpDown,
   BookOpen,
   Gamepad2,
@@ -35,6 +37,7 @@ import {
   SlidersHorizontal,
   Upload,
   ExternalLink,
+  Trash2,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
@@ -46,6 +49,8 @@ import { getGameTone, getRarityBorderColor } from "@/utils/gameStyles";
 import { api } from "../../../../convex/_generated/api";
 import { DesktopDropdown } from "@/components/DesktopDropdown";
 
+const ArrowUpIcon = ArrowUp as React.ComponentType<any>;
+const ArrowDownIcon = ArrowDown as React.ComponentType<any>;
 const ArrowUpDownIcon = ArrowUpDown as React.ComponentType<any>;
 const BookOpenIcon = BookOpen as React.ComponentType<any>;
 const Gamepad2Icon = Gamepad2 as React.ComponentType<any>;
@@ -61,6 +66,7 @@ const MaximizeIcon = Maximize as React.ComponentType<any>;
 const SlidersHorizontalIcon = SlidersHorizontal as React.ComponentType<any>;
 const UploadIcon = Upload as React.ComponentType<any>;
 const ExternalLinkIcon = ExternalLink as React.ComponentType<any>;
+const Trash2Icon = Trash2 as React.ComponentType<any>;
 
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
@@ -83,7 +89,8 @@ function useGridLayout() {
   return { numColumns, cardWidth, cardHeight, isDesktop };
 }
 
-type SortBy = "name" | "price" | "dateAdded";
+type SortBy = "name" | "price" | "dateAdded" | "rarity" | "set" | "number";
+type SortDirection = "asc" | "desc";
 
 const USD_FORMATTER = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -111,6 +118,8 @@ function mapScanToCard(scan: any): Card {
     condition: scan.condition ?? "NM",
     finish: (scan.finish as Card["finish"]) ?? (scan.foil ? "Foil" : "Normal"),
     game: (scan.gameCode as Card["game"]) || "unknown",
+    tags: scan.tags ?? [],
+    quantity: scan.quantity ?? 1,
   };
 }
 
@@ -151,12 +160,18 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
   const { signOut } = useClerk();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("dateAdded");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [linkWaitExpired, setLinkWaitExpired] = useState(false);
 
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const storeUserMutation = useMutation(api.users.storeUser);
+  const deleteMutation = useMutation(api.users.deleteFromCollection);
   const currentUser = useQuery(api.users.getCurrentUser, isAuthLoaded && isSignedIn ? {} : "skip");
   const rawScans = useQuery(api.users.getUserCollection, currentUser?._id ? { userId: currentUser._id } : "skip");
 
@@ -197,22 +212,45 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
     return codes.sort();
   }, [cards]);
 
+  const allTags = useMemo(() => {
+    const tagsSet = new Set<string>();
+    cards.forEach(c => c.tags?.forEach(t => tagsSet.add(t)));
+    return Array.from(tagsSet).sort();
+  }, [cards]);
+
   const filteredCards = useMemo(() => {
     let result = [...cards];
     if (activeTab !== "All") {
       result = result.filter((c) => c.game === activeTab);
+    }
+    if (activeTagFilter) {
+      result = result.filter(c => c.tags?.includes(activeTagFilter));
     }
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       result = result.filter(c => c.name.toLowerCase().includes(q) || c.set.toLowerCase().includes(q) || c.rarity.toLowerCase().includes(q));
     }
     result.sort((left, right) => {
-      if (sortBy === "name") return left.name.localeCompare(right.name);
-      if (sortBy === "price") return right.price - left.price;
-      return new Date(right.dateAdded).getTime() - new Date(left.dateAdded).getTime();
+      let valA: any = left[sortBy as keyof Card];
+      let valB: any = right[sortBy as keyof Card];
+      
+      if (sortBy === "dateAdded") {
+         valA = new Date(left.dateAdded).getTime();
+         valB = new Date(right.dateAdded).getTime();
+      } else if (sortBy === "price") {
+         valA = left.price;
+         valB = right.price;
+      } else {
+         valA = String(valA || "").toLowerCase();
+         valB = String(valB || "").toLowerCase();
+      }
+
+      if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+      if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+      return 0;
     });
     return result;
-  }, [cards, searchQuery, sortBy, activeTab]);
+  }, [cards, searchQuery, sortBy, sortDirection, activeTab, activeTagFilter]);
 
   const exportBinderCsv = useCallback(async () => {
     if (filteredCards.length === 0) {
@@ -255,7 +293,45 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
     setRefreshing(false);
   }, []);
 
-  const handleCardPress = useCallback((card: Card) => router.push(`/card/${card.id}`), [router]);
+  const handleCardInteract = useCallback((card: Card) => {
+    if (isSelectionMode) {
+      const newSet = new Set(selectedIds);
+      if (newSet.has(card.id)) newSet.delete(card.id);
+      else newSet.add(card.id);
+      setSelectedIds(newSet);
+    } else {
+      router.push(`/card/${card.id}`);
+    }
+  }, [isSelectionMode, selectedIds, router]);
+
+  const handleCardLongPress = useCallback((card: Card) => {
+    if (!isSelectionMode) {
+      if (Platform.OS !== "web" && Platform.OS !== "windows" && Platform.OS !== "macos" && typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(50);
+      }
+      setIsSelectionMode(true);
+      setSelectedIds(new Set([card.id]));
+    }
+  }, [isSelectionMode]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    const confirm = Platform.OS === "web" 
+      ? window.confirm(`Delete ${selectedIds.size} cards from your binder?`) 
+      : await new Promise(resolve => Alert.alert("Delete Cards", `Delete ${selectedIds.size} cards from your binder?`, [ { text: "Cancel", onPress: () => resolve(false), style: "cancel" }, { text: "Delete", onPress: () => resolve(true), style: "destructive" } ]));
+    
+    if (!confirm) return;
+    
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => deleteMutation({ scanId: id as any })));
+      setIsSelectionMode(false);
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error(err);
+      if (Platform.OS === "web") alert("Failed to delete some cards.");
+      else Alert.alert("Error", "Failed to delete some cards.");
+    }
+  }, [selectedIds, deleteMutation]);
 
   const renderCardItem = useCallback(({ item, index }: { item: Card; index: number }) => {
     const isLeftEdge = index % numColumns === 0;
@@ -271,18 +347,28 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
       : condition === "MP" ? "#fbbf24"
       : "#fb7185";
 
+    const isSelected = selectedIds.has(item.id);
+    const isDimmed = isSelectionMode && !isSelected;
+
     if (viewMode === "list") {
       return (
         <Pressable
-          onPress={() => handleCardPress(item)}
+          onPress={() => handleCardInteract(item)}
+          onLongPress={() => handleCardLongPress(item)}
           style={{
             flexDirection: "row", alignItems: "center", gap: 12,
             marginHorizontal: 16, marginBottom: 8,
-            backgroundColor: "rgba(17,24,39,0.7)",
-            borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
+            backgroundColor: isSelected ? "rgba(199,167,123,0.1)" : "rgba(17,24,39,0.7)",
+            borderWidth: 1, borderColor: isSelected ? "rgba(199,167,123,0.5)" : "rgba(255,255,255,0.07)",
             borderRadius: 14, padding: 10,
+            opacity: isDimmed ? 0.4 : 1,
           }}
         >
+          {isSelectionMode && (
+            <View style={{ marginRight: 4 }}>
+              {isSelected ? <CheckSquareIcon size={18} color="#c7a77b" /> : <View style={{ width: 16, height: 16, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.3)", borderRadius: 4, margin: 1 }} />}
+            </View>
+          )}
           {/* Sleeve thumbnail */}
           <View style={{
             width: 44, height: 62, borderRadius: 6, overflow: "hidden",
@@ -316,17 +402,18 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
     // ── Grid: Binder Pocket ──────────────────────────────────────────────────
     return (
       <Pressable
-        onPress={() => handleCardPress(item)}
-        style={{ width: cardWidth, marginLeft: isLeftEdge ? 0 : CARD_GAP, marginBottom: CARD_GAP }}
+        onPress={() => handleCardInteract(item)}
+        onLongPress={() => handleCardLongPress(item)}
+        style={{ width: cardWidth, marginLeft: isLeftEdge ? 0 : CARD_GAP, marginBottom: CARD_GAP, opacity: isDimmed ? 0.4 : 1 }}
       >
         {({ pressed }: any) => (
           <View style={{
             // The pocket itself — sunken, stitched feel
-            backgroundColor: "rgba(5,8,18,0.85)",
+            backgroundColor: isSelected ? "rgba(199,167,123,0.05)" : "rgba(5,8,18,0.85)",
             borderRadius: 8,
             padding: 3,
             borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.06)",
+            borderColor: isSelected ? "rgba(199,167,123,0.5)" : "rgba(255,255,255,0.06)",
             // Inset shadow via layered border trick
             shadowColor: "#000",
             shadowOffset: { width: 0, height: 2 },
@@ -404,6 +491,13 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                 shadowRadius: 3,
                 elevation: 2,
               }} />
+
+              {/* Selection Overlay */}
+              {isSelectionMode && (
+                 <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isSelected ? "rgba(199,167,123,0.15)" : "rgba(0,0,0,0.3)", alignItems: "center", justifyContent: "center" }}>
+                   {isSelected && <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#c7a77b", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.5, shadowRadius: 4 }}><CheckSquareIcon size={16} color="#060b17" /></View>}
+                 </View>
+              )}
             </View>
 
             {/* Label below card — like a penciled name on sleeve */}
@@ -424,7 +518,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
         )}
       </Pressable>
     );
-  }, [handleCardPress, viewMode, cardWidth, numColumns]);
+  }, [handleCardInteract, handleCardLongPress, viewMode, cardWidth, numColumns, isSelectionMode, selectedIds]);
 
   const renderEmptyState = useCallback(() => {
     if (!currentUser?._id || cards.length === 0) {
@@ -646,24 +740,57 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                   </View>
                 }
               />
-              <DesktopDropdown
-                title="Sort by"
-                selectedId={sortBy}
-                onSelect={(id) => setSortBy(id as SortBy)}
-                panelWidth={220}
-                options={[
-                  { id: "dateAdded", label: "Date added", sub: "Newest first" },
-                  { id: "name", label: "Name", sub: "A → Z" },
-                  { id: "price", label: "Price", sub: "High → low" },
-                ]}
-                trigger={
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
-                    <SlidersHorizontalIcon size={14} color={KadoColors.slateText} />
-                    <Text style={{ color: "#ccd6f6", fontSize: 13, fontWeight: "600" }}>{{ dateAdded: "Date added", name: "Name", price: "Price" }[sortBy]}</Text>
-                    <ChevronDownIcon size={13} color={KadoColors.slateText} />
-                  </View>
-                }
-              />
+              {allTags.length > 0 && (
+                <DesktopDropdown
+                  title="Filter by Tag"
+                  selectedId={activeTagFilter || "all_tags"}
+                  onSelect={(id) => setActiveTagFilter(id === "all_tags" ? null : id)}
+                  panelWidth={180}
+                  options={[
+                    { id: "all_tags", label: "All Tags" },
+                    ...allTags.map(tag => ({ id: tag, label: tag }))
+                  ]}
+                  trigger={
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 44, backgroundColor: activeTagFilter ? "rgba(59,130,246,0.2)" : "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: activeTagFilter ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                      <Filter size={14} color={activeTagFilter ? "#93c5fd" : KadoColors.slateText} />
+                      <Text style={{ color: activeTagFilter ? "#bfdbfe" : "#ccd6f6", fontSize: 13, fontWeight: "600" }}>{activeTagFilter || "Tags"}</Text>
+                      <ChevronDownIcon size={13} color={activeTagFilter ? "#93c5fd" : KadoColors.slateText} />
+                    </View>
+                  }
+                />
+              )}
+              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                <DesktopDropdown
+                  title="Sort by"
+                  selectedId={sortBy}
+                  onSelect={(id) => setSortBy(id as SortBy)}
+                  panelWidth={220}
+                  options={[
+                    { id: "dateAdded", label: "Date added" },
+                    { id: "name", label: "Name" },
+                    { id: "price", label: "Price" },
+                    { id: "rarity", label: "Rarity" },
+                    { id: "set", label: "Set" },
+                    { id: "number", label: "Card Number" },
+                  ]}
+                  trigger={
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 42 }}>
+                      <SlidersHorizontalIcon size={14} color={KadoColors.slateText} />
+                      <Text style={{ color: "#ccd6f6", fontSize: 13, fontWeight: "600" }}>
+                        {{ dateAdded: "Date added", name: "Name", price: "Price", rarity: "Rarity", set: "Set", number: "Number" }[sortBy]}
+                      </Text>
+                      <ChevronDownIcon size={13} color={KadoColors.slateText} />
+                    </View>
+                  }
+                />
+                <View style={{ width: 1, height: 24, backgroundColor: "rgba(255,255,255,0.08)" }} />
+                <Pressable 
+                  onPress={() => setSortDirection(d => d === "asc" ? "desc" : "asc")}
+                  style={{ paddingHorizontal: 12, height: 42, justifyContent: "center" }}
+                >
+                  {sortDirection === "asc" ? <ArrowUpIcon size={16} color={KadoColors.slateText} /> : <ArrowDownIcon size={16} color={KadoColors.slateText} />}
+                </Pressable>
+              </View>
               <View style={{ flex: 1, flexDirection: "row", alignItems: "center", position: "relative" }}>
                 <View style={{ position: "absolute", left: 10, zIndex: 1 }}><SearchIcon size={14} color={KadoColors.slateText} /></View>
                 <TextInput placeholder="Search binder…" placeholderTextColor="rgba(136,146,176,0.4)" style={{ flex: 1, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingLeft: 32, paddingRight: 12, fontSize: 13, color: "#ccd6f6" }} value={searchQuery} onChangeText={setSearchQuery} />
@@ -701,24 +828,57 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                     </View>
                   }
                 />
-                <DesktopDropdown
-                  title="Sort by"
-                  selectedId={sortBy}
-                  onSelect={(id) => setSortBy(id as SortBy)}
-                  panelWidth={200}
-                  options={[
-                    { id: "dateAdded", label: "Date added", sub: "Newest first" },
-                    { id: "name", label: "Name", sub: "A → Z" },
-                    { id: "price", label: "Price", sub: "High → low" },
-                  ]}
-                  trigger={
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
-                      <SlidersHorizontalIcon size={13} color={KadoColors.slateText} />
-                      <Text style={{ color: "#ccd6f6", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>{{ dateAdded: "Date", name: "Name", price: "Price" }[sortBy]}</Text>
-                      <ChevronDownIcon size={12} color={KadoColors.slateText} />
-                    </View>
-                  }
-                />
+                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                  <DesktopDropdown
+                    title="Sort by"
+                    selectedId={sortBy}
+                    onSelect={(id) => setSortBy(id as SortBy)}
+                    panelWidth={200}
+                    options={[
+                      { id: "dateAdded", label: "Date added" },
+                      { id: "name", label: "Name" },
+                      { id: "price", label: "Price" },
+                      { id: "rarity", label: "Rarity" },
+                      { id: "set", label: "Set" },
+                      { id: "number", label: "Card Number" },
+                    ]}
+                    trigger={
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 42 }}>
+                        <SlidersHorizontalIcon size={13} color={KadoColors.slateText} />
+                        <Text style={{ color: "#ccd6f6", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>
+                          {{ dateAdded: "Date", name: "Name", price: "Price", rarity: "Rarity", set: "Set", number: "Number" }[sortBy]}
+                        </Text>
+                        <ChevronDownIcon size={12} color={KadoColors.slateText} />
+                      </View>
+                    }
+                  />
+                  <View style={{ width: 1, height: 20, backgroundColor: "rgba(255,255,255,0.08)" }} />
+                  <Pressable 
+                    onPress={() => setSortDirection(d => d === "asc" ? "desc" : "asc")}
+                    style={{ paddingHorizontal: 10, height: 42, justifyContent: "center" }}
+                  >
+                    {sortDirection === "asc" ? <ArrowUpIcon size={14} color={KadoColors.slateText} /> : <ArrowDownIcon size={14} color={KadoColors.slateText} />}
+                  </Pressable>
+                </View>
+                {allTags.length > 0 && (
+                  <DesktopDropdown
+                    title="Filter by Tag"
+                    selectedId={activeTagFilter || "all_tags"}
+                    onSelect={(id) => setActiveTagFilter(id === "all_tags" ? null : id)}
+                    panelWidth={160}
+                    options={[
+                      { id: "all_tags", label: "All Tags" },
+                      ...allTags.map(tag => ({ id: tag, label: tag }))
+                    ]}
+                    trigger={
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 44, backgroundColor: activeTagFilter ? "rgba(59,130,246,0.2)" : "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: activeTagFilter ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                        <Filter size={13} color={activeTagFilter ? "#93c5fd" : KadoColors.slateText} />
+                        <Text style={{ color: activeTagFilter ? "#bfdbfe" : "#ccd6f6", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>{activeTagFilter || "Tags"}</Text>
+                        <ChevronDownIcon size={12} color={activeTagFilter ? "#93c5fd" : KadoColors.slateText} />
+                      </View>
+                    }
+                  />
+                )}
                 <View style={{ flex: 1 }} />
                 {/* View toggle */}
                 <View style={{ flexDirection: "row", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, height: 44, overflow: "hidden" }}>
@@ -760,7 +920,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
             keyExtractor={(item) => item.id}
             numColumns={viewMode === "grid" ? numColumns : 1}
             key={`${viewMode}-${numColumns}`}
-            contentContainerStyle={{ paddingHorizontal: viewMode === "grid" ? GRID_PADDING : 0, paddingTop: 12, paddingBottom: 32, flexGrow: 1 }}
+            contentContainerStyle={{ paddingHorizontal: viewMode === "grid" ? GRID_PADDING : 0, paddingTop: 12, paddingBottom: 100, flexGrow: 1 }}
             ListEmptyComponent={renderEmptyState}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={KadoColors.umber} colors={[KadoColors.umber]} />}
@@ -776,6 +936,48 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
           </View>
         )}
       </View>
+
+      {/* ── Selection Action Bar ─────────────────────────────────────────────── */}
+      {isSelectionMode && (
+        <View style={{
+          position: "absolute", bottom: Platform.OS === "web" ? 32 : 100, left: 0, right: 0,
+          alignItems: "center", zIndex: 100
+        }}>
+          <View style={{
+            flexDirection: "row", alignItems: "center", gap: 12,
+            backgroundColor: "rgba(10,15,28,0.95)",
+            borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+            borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10,
+            shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.5, shadowRadius: 16, elevation: 12
+          }}>
+            <Pressable onPress={() => { setIsSelectionMode(false); setSelectedIds(new Set()); }} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Text style={{ color: "#a8b2d8", fontWeight: "600", fontSize: 13 }}>Cancel</Text>
+            </Pressable>
+            <View style={{ width: 1, height: 20, backgroundColor: "rgba(255,255,255,0.15)" }} />
+            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{selectedIds.size} Selected</Text>
+            <View style={{ width: 1, height: 20, backgroundColor: "rgba(255,255,255,0.15)" }} />
+            <Pressable 
+              onPress={() => {
+                if (selectedIds.size === filteredCards.length) setSelectedIds(new Set());
+                else setSelectedIds(new Set(filteredCards.map(c => c.id)));
+              }} 
+              style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+            >
+              <Text style={{ color: "#ccd6f6", fontWeight: "600", fontSize: 13 }}>
+                {selectedIds.size === filteredCards.length ? "Deselect All" : "Select All"}
+              </Text>
+            </Pressable>
+            <Pressable 
+              onPress={() => void handleBulkDelete()}
+              style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "rgba(251,113,133,0.15)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(251,113,133,0.3)", flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Trash2Icon size={14} color="#fb7185" />
+              <Text style={{ color: "#fb7185", fontWeight: "700", fontSize: 13 }}>Delete</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
     </SafeAreaView>
   );

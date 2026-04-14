@@ -84,6 +84,12 @@ export default defineSchema({
         quantity: v.optional(v.number()),
         isFavorite: v.optional(v.boolean()),
         tags: v.optional(v.array(v.string())),
+        priceHistory: v.optional(v.array(v.object({
+            price: v.number(),
+            date: v.string(), // ISO String
+            source: v.string() // e.g. "pokemontcg.io" | "scryfall"
+        }))),
+        lastPriceUpdate: v.optional(v.number()),
         createdAt: v.number(),
     }).index("by_user", ["userId"]),
 
