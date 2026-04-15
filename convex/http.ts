@@ -306,8 +306,7 @@ http.route({
                     },
                   },
                   {
-                    text: `Identify the physical boundaries of all trading cards in this image. 
-Return a JSON array of objects, where each object has a "box_2d" array of 4 integers: [ymin, xmin, ymax, xmax] representing the normalized bounding box (scaled 0-1000). Only bound the cards.`,
+                    text: `You are a precise trading card detector. Find EVERY single trading card - do NOT miss any. If there are 6 cards visible, return 6 boxes. Return JSON array where each item has box_2d: [ymin, xmin, ymax, xmax] normalized 0-1000. Bound each individual card tightly.`,
                   },
                 ],
               },

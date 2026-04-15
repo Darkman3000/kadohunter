@@ -164,7 +164,9 @@ export default function ScannerScreen() {
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectedBoxes, setDetectedBoxes] = useState<Array<{ box_2d: number[] }>>([])
   const [awaitingSelection, setAwaitingSelection] = useState(false);
-  const pendingBase64Ref = useRef<string | null>(null);;
+  const pendingBase64Ref = useRef<string | null>(null);
+  const [imageNaturalSize, setImageNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
   const [scanSource, setScanSource] = useState<ScanSource | null>(null);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<RecognitionResult | null>(null);
@@ -896,21 +898,60 @@ export default function ScannerScreen() {
             mode="picture"
           >
             {previewUri ? (
-              <View className="absolute inset-0 bg-black items-center justify-center">
-                 <Image 
-                   source={{ uri: previewUri }} 
-                   style={{ width: '100%', height: '100%', opacity: 0.85 }} 
-                   contentFit="cover" 
+              <View
+                className="absolute inset-0 bg-black items-center justify-center"
+                onLayout={(e) => {
+                  const { width, height } = e.nativeEvent.layout;
+                  setContainerSize({ width, height });
+                }}
+              >
+                 <Image
+                   source={{ uri: previewUri }}
+                   style={{ width: '100%', height: '100%', opacity: isDetecting ? 0.6 : 0.88 }}
+                   contentFit="contain"
                    transition={300}
+                   onLoad={(e) => {
+                     const { width, height } = (e as any).source ?? {};
+                     if (width && height) setImageNaturalSize({ width, height });
+                   }}
                  />
-                 <View className="absolute inset-0 bg-midnight/40" />
+                 <View className="absolute inset-0 bg-midnight/30" />
 
-                 {detectedBoxes.map((box, idx) => {
+                 {isDetecting && (
+                   <View className="absolute inset-0 items-center justify-center">
+                     <View className="bg-black/75 rounded-2xl px-6 py-4 items-center gap-3 border border-emerald-500/30">
+                       <ActivityIndicator size="small" color="#34d399" />
+                       <Text className="text-emerald-300 text-xs font-bold tracking-widest uppercase">Scanning for cards...</Text>
+                     </View>
+                   </View>
+                 )}
+
+                 {!isDetecting && detectedBoxes.map((box, idx) => {
                     const [ymin, xmin, ymax, xmax] = box.box_2d;
-                    const top = `${(ymin / 1000) * 100}%`;
-                    const left = `${(xmin / 1000) * 100}%`;
-                    const width = `${((xmax - xmin) / 1000) * 100}%`;
-                    const height = `${((ymax - ymin) / 1000) * 100}%`;
+
+                    // Compute letterbox offsets for contentFit="contain"
+                    let offsetX = 0, offsetY = 0, scaleW = 1, scaleH = 1;
+                    if (containerSize && imageNaturalSize) {
+                      const cW = containerSize.width;
+                      const cH = containerSize.height;
+                      const iW = imageNaturalSize.width;
+                      const iH = imageNaturalSize.height;
+                      const scale = Math.min(cW / iW, cH / iH);
+                      const renderedW = iW * scale;
+                      const renderedH = iH * scale;
+                      offsetX = (cW - renderedW) / 2;
+                      offsetY = (cH - renderedH) / 2;
+                      scaleW = renderedW;
+                      scaleH = renderedH;
+                    } else {
+                      scaleW = containerSize?.width ?? 300;
+                      scaleH = containerSize?.height ?? 600;
+                    }
+
+                    const top = offsetY + (ymin / 1000) * scaleH;
+                    const left = offsetX + (xmin / 1000) * scaleW;
+                    const width = ((xmax - xmin) / 1000) * scaleW;
+                    const height = ((ymax - ymin) / 1000) * scaleH;
 
                     return (
                       <Pressable
@@ -918,28 +959,28 @@ export default function ScannerScreen() {
                         onPress={() => awaitingSelection && handleBoxTap(box)}
                         style={{ position: 'absolute', top, left, width, height, zIndex: 30 }}
                       >
-                        <Animated.View 
-                          entering={SlideInDown.springify().delay(idx * 150)}
+                        <Animated.View
+                          entering={SlideInDown.springify().delay(idx * 120)}
                           style={{
                              flex: 1,
                              borderWidth: awaitingSelection ? 2.5 : 2,
                              borderColor: awaitingSelection ? '#6ee7b7' : '#34d399',
-                             backgroundColor: awaitingSelection ? 'rgba(52, 211, 153, 0.18)' : 'rgba(52, 211, 153, 0.1)',
+                             backgroundColor: awaitingSelection ? 'rgba(52, 211, 153, 0.18)' : 'rgba(52, 211, 153, 0.08)',
                              borderRadius: 8,
                              shadowColor: '#34d399',
-                             shadowOpacity: 0.8,
-                             shadowRadius: 10,
+                             shadowOpacity: 0.9,
+                             shadowRadius: 12,
                              shadowOffset: { width: 0, height: 0 }
                           }}
                         >
-                           <View className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-emerald-400" />
-                           <View className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-emerald-400" />
-                           <View className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-emerald-400" />
-                           <View className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-emerald-400" />
+                           <View className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-emerald-400" />
+                           <View className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-emerald-400" />
+                           <View className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-emerald-400" />
+                           <View className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-emerald-400" />
                            {awaitingSelection && (
                              <View className="absolute inset-0 items-center justify-center">
-                               <View className="bg-black/70 px-3 py-1.5 rounded-full border border-emerald-400/40">
-                                 <Text className="text-emerald-300 text-[10px] font-bold tracking-widest uppercase">TAP TO SCAN</Text>
+                               <View className="bg-black/70 px-2 py-1 rounded-full border border-emerald-400/50">
+                                 <Text className="text-emerald-300 text-[9px] font-bold tracking-widest uppercase">TAP TO SCAN</Text>
                                </View>
                              </View>
                            )}
