@@ -383,21 +383,19 @@ export default function ScannerScreen() {
         // Highlight only the tapped box
         setDetectedBoxes([box]);
 
-        // Crop the original image to the bounding box region
-        const originX = xmin / 1000;
-        const originY = ymin / 1000;
-        const cropWidth = (xmax - xmin) / 1000;
-        const cropHeight = (ymax - ymin) / 1000;
+        // Use imageNaturalSize for accurate pixel mapping if available, otherwise fallback to 640
+        const imgW = imageNaturalSize?.width ?? 640;
+        const imgH = imageNaturalSize?.height ?? (imgW * 1.4);
 
         const cropped = await manipulateAsync(
           previewUri,
           [
             {
               crop: {
-                originX: Math.round(originX * 640),
-                originY: Math.round(originY * 640 * 1.4), // approximate aspect ratio
-                width: Math.round(cropWidth * 640),
-                height: Math.round(cropHeight * 640 * 1.4),
+                originX: Math.round(originX * imgW),
+                originY: Math.round(originY * imgH),
+                width: Math.round(cropWidth * imgW),
+                height: Math.round(cropHeight * imgH),
               },
             },
             { resize: { width: 640 } },
@@ -409,6 +407,8 @@ export default function ScannerScreen() {
           throw new Error("Failed to crop the selected card.");
         }
 
+        // Update preview so the result sheet shows the cropped card thumbnail
+        setPreviewUri(cropped.uri);
         await runIdentify(cropped.base64);
       } catch (error) {
         const message = getRecognitionErrorMessage(error);
