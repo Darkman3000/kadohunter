@@ -1,4 +1,4 @@
-import { action } from "./_generated/server";
+import { mutation, action } from "./_generated/server";
 import { v } from "convex/values";
 
 export const fetchUrlAsBase64 = action({
@@ -72,5 +72,31 @@ export const fetchUrlAsBase64 = action({
     } else {
       return Buffer.from(binary, 'binary').toString('base64');
     }
+  },
+});
+
+/**
+ * Returns a short-lived upload URL for storing card images in Convex Storage.
+ * The client uploads directly; we never pipe image bytes through our mutations.
+ */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Authentication required");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
+ * After a successful upload via generateUploadUrl, call this to get
+ * the permanent public URL for the stored image.
+ */
+export const getStorageUrl = mutation({
+  args: { storageId: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Authentication required");
+    return await ctx.storage.getUrl(args.storageId as any);
   },
 });

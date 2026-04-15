@@ -156,6 +156,8 @@ export default function ScannerScreen() {
 
   const logScanAttempt = useMutation(api.users.logScanAttempt);
   const saveScanToCollection = useMutation(api.users.saveScanToCollection);
+  const generateUploadUrl = useMutation(api.images.generateUploadUrl);
+  const getStorageUrl = useMutation(api.images.getStorageUrl);
 
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -637,6 +639,27 @@ export default function ScannerScreen() {
     try {
       const cardId = buildCardId(scanResult);
 
+      // Upload local photo to Convex Storage to get a persistent URL
+      let resolvedImageUrl: string | undefined = scanResult.imageUrl;
+      if (!resolvedImageUrl && previewUri && previewUri.startsWith("file")) {
+        try {
+          const uploadUrl = await generateUploadUrl();
+          const photoRes = await fetch(previewUri);
+          const blob = await photoRes.blob();
+          const uploadRes = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": blob.type || "image/jpeg" },
+            body: blob,
+          });
+          const { storageId } = await uploadRes.json();
+          const permanentUrl = await getStorageUrl({ storageId });
+          if (permanentUrl) resolvedImageUrl = permanentUrl;
+        } catch (uploadErr) {
+          console.warn("Failed to upload photo to storage:", uploadErr);
+          // Non-fatal — continue saving without image
+        }
+      }
+
       if (scanMode === "Binder") {
         const allowed = await logScanAttempt({ userId: currentUser._id });
         if (!allowed) {
@@ -658,7 +681,7 @@ export default function ScannerScreen() {
           finish: scanResult.finish ?? "Normal",
           marketTrend: "stable",
           estimatedPrice: scanResult.estimatedPriceUsd,
-          imageUrl: scanResult.imageUrl ?? previewUri ?? undefined,
+          imageUrl: resolvedImageUrl ?? undefined,
         });
         showFeedback("success", `${scanResult.name} added to your binder.`);
       } else if (scanMode === "Flea") {
@@ -672,7 +695,7 @@ export default function ScannerScreen() {
             cardId,
             cardName: scanResult.name,
             setName: scanResult.set,
-            imageUrl: scanResult.imageUrl ?? previewUri ?? undefined,
+            imageUrl: resolvedImageUrl ?? undefined,
             rarity: scanResult.rarity,
             marketPrice: scanResult.estimatedPriceUsd,
           });
