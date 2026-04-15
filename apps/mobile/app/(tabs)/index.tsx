@@ -761,7 +761,19 @@ export default function ScannerScreen() {
             facing={cameraFacing}
             mode="picture"
           >
-            <View className="absolute inset-0 bg-midnight/10" />
+            {scanSource === "gallery" && previewUri ? (
+              <View className="absolute inset-0 bg-black items-center justify-center">
+                 <Image 
+                   source={{ uri: previewUri }} 
+                   style={{ width: '100%', height: '100%', opacity: 0.85 }} 
+                   contentFit="contain" 
+                   transition={300}
+                 />
+                 <View className="absolute inset-0 bg-midnight/40" />
+              </View>
+            ) : (
+              <View className="absolute inset-0 bg-midnight/10" />
+            )}
 
             <View className="flex-1 justify-between">
             <View className="flex-row justify-between items-start px-6 pt-6">
