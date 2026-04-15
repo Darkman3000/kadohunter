@@ -807,9 +807,10 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
               </Pressable>
             </View>
           ) : (
-            // Mobile: two rows — filters + view toggle on top, search full-width below
-            <View style={{ gap: 8, marginBottom: 16 }}>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            // Mobile: two rows — filters on top, search + export below
+            <View style={{ gap: 10, marginBottom: 16 }}>
+              {/* Row 1: Filters left, view toggle right */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <DesktopDropdown
                   title="Collection"
                   subtitle="Show cards from one game or all"
@@ -821,7 +822,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                     ...gameFilterOptions.map((code) => ({ id: code, label: getGameLabel(code) })),
                   ]}
                   trigger={
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 40, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
                       <BookOpenIcon size={13} color={KadoColors.slateText} />
                       <Text style={{ color: "#ccd6f6", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>{activeTab === "All" ? "All" : getGameLabel(activeTab)}</Text>
                       <ChevronDownIcon size={12} color={KadoColors.slateText} />
@@ -843,7 +844,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                       { id: "number", label: "Card Number" },
                     ]}
                     trigger={
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 42 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 40 }}>
                         <SlidersHorizontalIcon size={13} color={KadoColors.slateText} />
                         <Text style={{ color: "#ccd6f6", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>
                           {{ dateAdded: "Date", name: "Name", price: "Price", rarity: "Rarity", set: "Set", number: "Number" }[sortBy]}
@@ -852,10 +853,10 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                       </View>
                     }
                   />
-                  <View style={{ width: 1, height: 20, backgroundColor: "rgba(255,255,255,0.08)" }} />
+                  <View style={{ width: 1, height: 18, backgroundColor: "rgba(255,255,255,0.08)" }} />
                   <Pressable 
                     onPress={() => setSortDirection(d => d === "asc" ? "desc" : "asc")}
-                    style={{ paddingHorizontal: 10, height: 42, justifyContent: "center" }}
+                    style={{ paddingHorizontal: 10, height: 40, justifyContent: "center" }}
                   >
                     {sortDirection === "asc" ? <ArrowUpIcon size={14} color={KadoColors.slateText} /> : <ArrowDownIcon size={14} color={KadoColors.slateText} />}
                   </Pressable>
@@ -871,7 +872,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                       ...allTags.map(tag => ({ id: tag, label: tag }))
                     ]}
                     trigger={
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 44, backgroundColor: activeTagFilter ? "rgba(59,130,246,0.2)" : "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: activeTagFilter ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 40, backgroundColor: activeTagFilter ? "rgba(59,130,246,0.2)" : "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: activeTagFilter ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.08)", borderRadius: 10 }}>
                         <Filter size={13} color={activeTagFilter ? "#93c5fd" : KadoColors.slateText} />
                         <Text style={{ color: activeTagFilter ? "#bfdbfe" : "#ccd6f6", fontSize: 12, fontWeight: "600" }} numberOfLines={1}>{activeTagFilter || "Tags"}</Text>
                         <ChevronDownIcon size={12} color={activeTagFilter ? "#93c5fd" : KadoColors.slateText} />
@@ -879,22 +880,25 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                     }
                   />
                 )}
+                <View style={{ flex: 1 }} />
                 {/* View toggle */}
-                <View style={{ flexDirection: "row", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, height: 44, overflow: "hidden" }}>
+                <View style={{ flexDirection: "row", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, height: 40, overflow: "hidden" }}>
                   {(["list", "grid"] as const).map((mode) => (
-                    <Pressable key={mode} onPress={() => setViewMode(mode)} style={{ width: 44, height: "100%", alignItems: "center", justifyContent: "center", backgroundColor: viewMode === mode ? "rgba(255,255,255,0.1)" : "transparent" }}>
-                      {mode === "list" ? <ListIcon size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} /> : <LayoutGrid size={15} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} />}
+                    <Pressable key={mode} onPress={() => setViewMode(mode)} style={{ width: 40, height: "100%", alignItems: "center", justifyContent: "center", backgroundColor: viewMode === mode ? "rgba(255,255,255,0.1)" : "transparent" }}>
+                      {mode === "list" ? <ListIcon size={14} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} /> : <LayoutGrid size={14} color={viewMode === mode ? "#ccd6f6" : KadoColors.slateText} />}
                     </Pressable>
                   ))}
                 </View>
-                <Pressable onPress={() => void exportBinderCsv()} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
-                  <ExternalLinkIcon size={15} color={KadoColors.slateText} />
-                </Pressable>
               </View>
-              {/* Search — full width row */}
-              <View style={{ flexDirection: "row", alignItems: "center", position: "relative" }}>
-                <View style={{ position: "absolute", left: 10, zIndex: 1 }}><SearchIcon size={14} color={KadoColors.slateText} /></View>
-                <TextInput placeholder="Search binder…" placeholderTextColor="rgba(136,146,176,0.4)" style={{ flex: 1, height: 44, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingLeft: 32, paddingRight: 12, fontSize: 13, color: "#ccd6f6" }} value={searchQuery} onChangeText={setSearchQuery} />
+              {/* Row 2: Search + export */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", position: "relative" }}>
+                  <View style={{ position: "absolute", left: 10, zIndex: 1 }}><SearchIcon size={14} color={KadoColors.slateText} /></View>
+                  <TextInput placeholder="Search binder…" placeholderTextColor="rgba(136,146,176,0.4)" style={{ flex: 1, height: 40, backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, paddingLeft: 32, paddingRight: 12, fontSize: 13, color: "#ccd6f6" }} value={searchQuery} onChangeText={setSearchQuery} />
+                </View>
+                <Pressable onPress={() => void exportBinderCsv()} style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10 }}>
+                  <ExternalLinkIcon size={14} color={KadoColors.slateText} />
+                </Pressable>
               </View>
             </View>
           )}
