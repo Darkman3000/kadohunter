@@ -809,8 +809,8 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
           ) : (
             // Mobile: two rows — filters on top, search + export below
             <View style={{ gap: 10, marginBottom: 16 }}>
-              {/* Row 1: Filters left, view toggle right */}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              {/* Row 1: Horizontally scrollable filter controls */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", gap: 8, paddingRight: 4 }}>
                 <DesktopDropdown
                   title="Collection"
                   subtitle="Show cards from one game or all"
@@ -880,7 +880,6 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                     }
                   />
                 )}
-                <View style={{ flex: 1 }} />
                 {/* View toggle */}
                 <View style={{ flexDirection: "row", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, height: 40, overflow: "hidden" }}>
                   {(["list", "grid"] as const).map((mode) => (
@@ -889,7 +888,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                     </Pressable>
                   ))}
                 </View>
-              </View>
+              </ScrollView>
               {/* Row 2: Search + export */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View style={{ flex: 1, flexDirection: "row", alignItems: "center", position: "relative" }}>
