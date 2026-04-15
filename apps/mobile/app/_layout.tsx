@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { useMutation } from "convex/react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Platform, Text, View, useWindowDimensions, Pressable } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BookOpen, Scan, User, LogOut, BarChart3, ArrowLeftRight, Globe } from "lucide-react-native";
 import { api } from "../../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -317,74 +318,76 @@ export default function RootLayout() {
         <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
           <InitUser />
           <WebConvexTokenWarmup />
-          <SafeAreaProvider style={{ backgroundColor: "#020617" }}>
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: "#020617",
-                flexDirection: isDesktop ? "row" : "column",
-                // On mobile web, center the phone-width pane horizontally
-                justifyContent: isWeb && !isDesktop ? "center" : undefined,
-                alignItems: isWeb && !isDesktop ? "center" : undefined,
-              }}
-            >
-              {isDesktop && <Sidebar />}
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaProvider style={{ backgroundColor: "#020617" }}>
               <View
-                style={[
-                  {
-                    overflow: "hidden",
-                    backgroundColor: "#0a192f",
-                    // Let the main pane shrink beside the sidebar (RN Web flex default min-width:auto overflows)
-                    minWidth: 0,
-                    flex: 1,
-                  },
-                  // Mobile web: fixed phone-like column, centered
-                  isWeb && !isDesktop && {
-                    width: "100%",
-                    maxWidth: 480,
-                    flex: 1,
-                    alignSelf: "center",
-                    borderLeftWidth: 1,
-                    borderRightWidth: 1,
-                    borderColor: "rgba(255,255,255,0.05)",
-                    shadowColor: "#000",
-                    shadowOpacity: 0.5,
-                    shadowRadius: 20,
-                  },
-                  // Desktop: fill remaining space beside sidebar
-                  isDesktop && {
-                    borderLeftWidth: 1,
-                    borderLeftColor: "rgba(255,255,255,0.05)",
-                  },
-                ]}
+                style={{
+                  flex: 1,
+                  backgroundColor: "#020617",
+                  flexDirection: isDesktop ? "row" : "column",
+                  // On mobile web, center the phone-width pane horizontally
+                  justifyContent: isWeb && !isDesktop ? "center" : undefined,
+                  alignItems: isWeb && !isDesktop ? "center" : undefined,
+                }}
               >
-                <ErrorBoundary>
-                  <Stack
-                    screenOptions={{
-                      headerShown: false,
-                      contentStyle: {
-                        backgroundColor: "#0a192f",
-                        flex: 1,
-                        minWidth: 0,
-                      },
-                    }}
-                  >
-                    <Stack.Screen name="(tabs)" />
-                    <Stack.Screen name="oauth-native-callback" />
-                    <Stack.Screen
-                      name="card/[id]"
-                      options={{ presentation: "modal" }}
-                    />
-                    <Stack.Screen
-                      name="subscription"
-                      options={{ presentation: "modal" }}
-                    />
-                  </Stack>
-                  <StatusBar style="light" />
-                </ErrorBoundary>
+                {isDesktop && <Sidebar />}
+                <View
+                  style={[
+                    {
+                      overflow: "hidden",
+                      backgroundColor: "#0a192f",
+                      // Let the main pane shrink beside the sidebar (RN Web flex default min-width:auto overflows)
+                      minWidth: 0,
+                      flex: 1,
+                    },
+                    // Mobile web: fixed phone-like column, centered
+                    isWeb && !isDesktop && {
+                      width: "100%",
+                      maxWidth: 480,
+                      flex: 1,
+                      alignSelf: "center",
+                      borderLeftWidth: 1,
+                      borderRightWidth: 1,
+                      borderColor: "rgba(255,255,255,0.05)",
+                      shadowColor: "#000",
+                      shadowOpacity: 0.5,
+                      shadowRadius: 20,
+                    },
+                    // Desktop: fill remaining space beside sidebar
+                    isDesktop && {
+                      borderLeftWidth: 1,
+                      borderLeftColor: "rgba(255,255,255,0.05)",
+                    },
+                  ]}
+                >
+                  <ErrorBoundary>
+                    <Stack
+                      screenOptions={{
+                        headerShown: false,
+                        contentStyle: {
+                          backgroundColor: "#0a192f",
+                          flex: 1,
+                          minWidth: 0,
+                        },
+                      }}
+                    >
+                      <Stack.Screen name="(tabs)" />
+                      <Stack.Screen name="oauth-native-callback" />
+                      <Stack.Screen
+                        name="card/[id]"
+                        options={{ presentation: "modal" }}
+                      />
+                      <Stack.Screen
+                        name="subscription"
+                        options={{ presentation: "modal" }}
+                      />
+                    </Stack>
+                    <StatusBar style="light" />
+                  </ErrorBoundary>
+                </View>
               </View>
-            </View>
-          </SafeAreaProvider>
+            </SafeAreaProvider>
+          </GestureHandlerRootView>
         </ConvexProviderWithClerk>
       </ClerkLoaded>
     </ClerkProvider>

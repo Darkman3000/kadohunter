@@ -208,10 +208,26 @@ Do NOT estimate the price. Focus only on accurate identification and the intel d
       });
 
       // Wait for image URL (with a short timeout so we don't block too long)
-      const imageUrl = await Promise.race([
+      let imageUrl = await Promise.race([
         imageUrlPromise,
         new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 2000)),
       ]);
+
+      if (!imageUrl && imageBase64) {
+        try {
+          const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, ""); 
+          const binary = atob(base64Data);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+              bytes[i] = binary.charCodeAt(i);
+          }
+          const storageId = await ctx.storage.store(new Blob([bytes], { type: "image/jpeg" }));
+          const fallbackUrl = await ctx.storage.getUrl(storageId);
+          if (fallbackUrl) imageUrl = fallbackUrl;
+        } catch (e) {
+          console.error("Failed to store fallback image", e);
+        }
+      }
 
       const result = {
         name: cardName,

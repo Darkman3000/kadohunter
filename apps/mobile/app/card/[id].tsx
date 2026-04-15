@@ -392,11 +392,20 @@ export default function CardDetailScreen() {
           <View className="flex-row items-start justify-between mb-8">
             <View className="flex-row gap-6">
               <View 
-                className="rounded-xl overflow-hidden bg-black border border-white/5"
+                className="rounded-xl overflow-hidden bg-white/5 border border-white/5 items-center justify-center relative"
                 style={{ width: isDesktop ? 160 : 120, aspectRatio: 0.72 }}
               >
-                <Image source={{ uri: displayCard.img }} style={{ width: '100%', height: '100%', borderRadius: 12 }} contentFit="cover" />
-                <View className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60">
+                {!displayCard.img ? (
+                   <Text className="text-white/20 font-bold text-[10px]">No Image</Text>
+                ) : (
+                  <Image 
+                    source={{ uri: displayCard.img }} 
+                    style={{ width: '100%', height: '100%', borderRadius: 12, position: 'absolute' }} 
+                    contentFit="cover" 
+                    transition={300}
+                  />
+                )}
+                <View className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-md bg-black/80 border border-white/10">
                    <Text className="text-white text-[10px] font-bold">x{quantity}</Text>
                 </View>
               </View>
@@ -413,11 +422,11 @@ export default function CardDetailScreen() {
                       toggleFavoriteMut({ scanId: scanId as any });
                     }
                   }}
-                  className={`flex-row items-center gap-2 px-6 py-2.5 rounded-full mt-4 border ${isFavorite ? 'bg-umber/10 border-umber/30' : 'bg-white/5 border-white/10'}`}
+                  className={`flex-row items-center justify-center gap-2 px-5 py-2.5 rounded-full mt-4 border active:scale-95 transition-all ${isFavorite ? 'bg-amber-400/10 border-amber-400/30' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                 >
-                  <StarIcon size={14} color={isFavorite ? KadoColors.umber : KadoColors.slateText} fill={isFavorite ? KadoColors.umber : 'transparent'} />
-                  <Text className={`text-xs font-bold ${isFavorite ? 'text-umber' : 'text-slate-text'}`}>
-                    {isFavorite ? 'In Favorites' : 'Add to Favorites'}
+                  <StarIcon size={14} color={isFavorite ? "#fbbf24" : KadoColors.slateText} fill={isFavorite ? "#fbbf24" : 'transparent'} />
+                  <Text className={`text-xs font-black tracking-wide ${isFavorite ? 'text-amber-400' : 'text-slate-text'}`}>
+                    {isFavorite ? 'FAVORITED' : 'ADD TO FAVORITES'}
                   </Text>
                 </Pressable>
               </View>
@@ -436,7 +445,7 @@ export default function CardDetailScreen() {
                     imageUrl: (rawCard as any).imageUrl,
                   });
                 }}
-                className={`w-10 h-10 rounded-full items-center justify-center border ${isOnWishlist ? 'bg-rose-500/10 border-rose-500/30' : 'bg-white/5 border-white/10'}`}
+                className={`w-10 h-10 rounded-full items-center justify-center border active:scale-95 transition-all ${isOnWishlist ? 'bg-rose-500/15 border-rose-500/40' : 'bg-white/5 border-white/10'}`}
               >
                 <HeartIcon 
                   size={18} 
@@ -527,16 +536,19 @@ export default function CardDetailScreen() {
             </View>
             <View className="flex-row flex-wrap gap-2">
                 {tags.length === 0 ? (
-                  <Text className="text-xs text-slate-text">No tags yet. Tap + to add a preset tag.</Text>
+                  <View className="px-6 py-4 rounded-xl border border-dashed border-white/20 bg-white/5 w-full items-center justify-center">
+                    <Text className="text-sm font-medium text-slate-text">No tags added.</Text>
+                    <Text className="text-xs text-slate-text/60 mt-1">Tap the + to add a preset tag to your binder.</Text>
+                  </View>
                 ) : (
                   tags.map((tag) => (
                     <Pressable
                       key={tag}
                       onPress={() => handleRemoveTag(tag)}
-                      className="px-4 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 flex-row items-center gap-2"
+                      className="px-4 py-2 rounded-[10px] bg-sky-500/10 border border-sky-500/20 flex-row items-center gap-2 active:scale-95"
                     >
-                       <Text className="text-xs font-bold text-blue-400">{tag}</Text>
-                       <CloseIcon size={10} color="#60a5fa" />
+                       <Text className="text-[13px] font-bold tracking-wide text-sky-400">{tag}</Text>
+                       <CloseIcon size={12} color="#38bdf8" />
                     </Pressable>
                   ))
                 )}
@@ -612,31 +624,27 @@ function MarketCard({
   
   return (
     <View 
-      className={`mr-4 p-5 rounded-2xl border ${active ? 'bg-blue-600/10 border-blue-500/40' : 'bg-white/5 border-white/5 opacity-40'}`}
+      className={`mr-4 p-5 rounded-[20px] border shadow-xl ${active ? 'bg-[#0f172a] border-blue-500/40' : 'bg-[#0f172a]/60 border-white/5'}`}
       style={{ width: 180 }}
     >
       <View className="flex-row items-center gap-2 mb-3">
-         <View className={`w-1.5 h-1.5 rounded-full ${platform === 'TCGplayer' ? 'bg-blue-600' : platform === 'Cardmarket' ? 'bg-amber-400' : 'bg-rose-500'}`} />
-         <Text className="text-[11px] font-bold text-slate-text">{platform}</Text>
+         <View className={`w-2 h-2 rounded-full ${platform === 'TCGplayer' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' : platform === 'Cardmarket' ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'}`} />
+         <Text className="text-[12px] font-black text-slate-text tracking-wide">{platform}</Text>
       </View>
       
-      <Text className="text-2xl font-black text-white mb-0.5">{formatUsd(price)}</Text>
-      <View className="flex-row items-center gap-1.5 mb-2">
-         <Text className={`text-[11px] font-bold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>{change}</Text>
-         <View className="px-1.5 py-0.5 rounded bg-white/10">
-            <Text className="text-[8px] font-black text-white/60">PRO</Text>
+      <Text className="text-3xl font-black text-white mb-1 tracking-tight">{formatUsd(price)}</Text>
+      <View className="flex-row items-center justify-between mb-4">
+         <Text className={`text-xs font-bold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>{change}</Text>
+         <View className="px-1.5 py-0.5 rounded border border-white/10 bg-white/5">
+            <Text className="text-[9px] font-bold tracking-widest text-white/50">PRO</Text>
          </View>
       </View>
       
-      <Text className="text-[10px] text-slate-text mb-4">
-        {typeof listings === "number" ? `${listings} listings` : "Listings unavailable"}
-      </Text>
-      
       <Pressable
         onPress={onBuy}
-        className={`py-2 rounded-lg items-center justify-center ${active ? 'bg-blue-600' : 'bg-white/10'}`}
+        className={`py-3 rounded-xl items-center justify-center active:scale-95 transition-transform ${active ? 'bg-blue-600 shadow-lg shadow-blue-500/20' : 'bg-white/5 border border-white/5'}`}
       >
-         <Text className="text-[10px] font-bold text-white">Buy on {platform}</Text>
+         <Text className={`text-[11px] font-black uppercase tracking-wider ${active ? 'text-white' : 'text-slate-text'}`}>Buy on {platform}</Text>
       </Pressable>
     </View>
   )

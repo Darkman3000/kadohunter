@@ -432,14 +432,14 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
               {item.imageUrl ? (
                 <Image
                   source={{ uri: item.imageUrl }}
-                  style={{ width: "100%", height: "100%" }}
+                  style={{ width: "100%", height: "100%", position: 'absolute' }}
                   contentFit="cover"
                   transition={200}
                 />
               ) : (
-                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0d1529" }}>
-                  <Text style={{ color: "#3d4f6e", fontSize: cardWidth * 0.28, fontWeight: "800" }}>
-                    {item.name?.charAt(0)?.toUpperCase() ?? "?"}
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0d1529", position: 'absolute', width: '100%', height: '100%' }}>
+                  <Text style={{ color: "rgba(255,255,255,0.2)", fontSize: cardWidth * 0.15, fontWeight: "800", textAlign: "center" }}>
+                    NO IMAGE
                   </Text>
                 </View>
               )}
