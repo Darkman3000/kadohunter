@@ -34,4 +34,5 @@ export interface RecognitionProvider {
   readonly name: string;
   isAvailable(): Promise<boolean>;
   identify(imageBase64: string): Promise<RecognitionResult>;
+  detectEdges?(imageBase64: string): Promise<Array<{ box_2d: number[] }>>;
 }

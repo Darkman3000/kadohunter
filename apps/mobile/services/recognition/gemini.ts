@@ -78,4 +78,23 @@ export class GeminiProvider implements RecognitionProvider {
       notableDetail: data.notableDetail,
     };
   }
+
+  async detectEdges(imageBase64: string): Promise<Array<{ box_2d: number[] }>> {
+    if (!this.convexUrl) {
+      throw new Error("Recognition service is not configured.");
+    }
+
+    const response = await fetch(`${this.convexUrl}/api/detect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64 }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Detection failed");
+    }
+
+    const data = await response.json();
+    return data.boxes ?? [];
+  }
 }

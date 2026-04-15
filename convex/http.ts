@@ -268,6 +268,97 @@ Do NOT estimate the price. Focus only on accurate identification and the intel d
 });
 
 http.route({
+  path: "/api/detect",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const body = await request.json();
+    const { imageBase64 } = body;
+
+    if (!imageBase64) {
+      return new Response(
+        JSON.stringify({ error: "imageBase64 is required" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "Gemini API key not configured" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    try {
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: "image/jpeg",
+                      data: imageBase64,
+                    },
+                  },
+                  {
+                    text: `Identify the physical boundaries of all trading cards in this image. 
+Return a JSON array of objects, where each object has a "box_2d" array of 4 integers: [ymin, xmin, ymax, xmax] representing the normalized bounding box (scaled 0-1000). Only bound the cards.`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    box_2d: {
+                      type: "ARRAY",
+                      items: { type: "INTEGER" }
+                    }
+                  }
+                }
+              },
+            },
+          }),
+        }
+      );
+
+      if (!geminiResponse.ok) {
+        return new Response(
+          JSON.stringify({ error: "Edge detection failed" }),
+          { status: 502, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const geminiData = await geminiResponse.json();
+      const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
+      let boxes = [];
+      try {
+        boxes = JSON.parse(text.trim());
+      } catch {}
+
+      return new Response(JSON.stringify({ boxes }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+      });
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: "Failed to detect cards" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+http.route({
   path: "/api/billing/webhook",
   method: "POST",
   handler: httpAction(async (ctx, request) => {

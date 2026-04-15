@@ -158,6 +158,7 @@ export default function ScannerScreen() {
 
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [detectedBoxes, setDetectedBoxes] = useState<Array<{ box_2d: number[] }>>([]);
   const [scanSource, setScanSource] = useState<ScanSource | null>(null);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<RecognitionResult | null>(null);
@@ -265,6 +266,7 @@ export default function ScannerScreen() {
     async (base64: string, source: ScanSource) => {
       if (isScanning || isSaving) return;
 
+      setDetectedBoxes([]);
       setScanSource(source);
       setScanResult(null);
       setFeedback(null);
@@ -273,7 +275,20 @@ export default function ScannerScreen() {
       try {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+        const geminiProvider = recognitionService as any;
+        if (geminiProvider.detectEdges) {
+          geminiProvider.detectEdges(base64).then((boxes: any) => {
+            if (boxes && boxes.length > 0) {
+              setDetectedBoxes(boxes);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+          }).catch((e: any) => {
+            console.warn("Edge detection failed:", e);
+          });
+        }
+
         const result = await recognitionService.identify(base64);
+
         setScanResult(result);
 
         if (result.confidence < LOW_CONFIDENCE_THRESHOLD) {
@@ -761,15 +776,47 @@ export default function ScannerScreen() {
             facing={cameraFacing}
             mode="picture"
           >
-            {scanSource === "gallery" && previewUri ? (
+            {previewUri ? (
               <View className="absolute inset-0 bg-black items-center justify-center">
                  <Image 
                    source={{ uri: previewUri }} 
                    style={{ width: '100%', height: '100%', opacity: 0.85 }} 
-                   contentFit="contain" 
+                   contentFit="cover" 
                    transition={300}
                  />
                  <View className="absolute inset-0 bg-midnight/40" />
+
+                 {detectedBoxes.map((box, idx) => {
+                    const [ymin, xmin, ymax, xmax] = box.box_2d;
+                    const top = `${(ymin / 1000) * 100}%`;
+                    const left = `${(xmin / 1000) * 100}%`;
+                    const width = `${((xmax - xmin) / 1000) * 100}%`;
+                    const height = `${((ymax - ymin) / 1000) * 100}%`;
+
+                    return (
+                      <Animated.View 
+                        key={idx}
+                        entering={SlideInDown.springify().delay(idx * 150)}
+                        style={{
+                           position: 'absolute',
+                           top, left, width, height,
+                           borderWidth: 2,
+                           borderColor: '#34d399',
+                           backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                           borderRadius: 8,
+                           shadowColor: '#34d399',
+                           shadowOpacity: 0.8,
+                           shadowRadius: 10,
+                           shadowOffset: { width: 0, height: 0 }
+                        }}
+                      >
+                         <View className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-emerald-400" />
+                         <View className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-emerald-400" />
+                         <View className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-emerald-400" />
+                         <View className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-emerald-400" />
+                      </Animated.View>
+                    );
+                 })}
               </View>
             ) : (
               <View className="absolute inset-0 bg-midnight/10" />
