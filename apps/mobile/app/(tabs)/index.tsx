@@ -654,11 +654,11 @@ export default function ScannerScreen() {
           rarity: scanResult.rarity,
           number: scanResult.number,
           condition: "NM",
-          foil: scanResult.finish !== "Normal", // Check if foil
+          foil: scanResult.finish !== "Normal",
           finish: scanResult.finish ?? "Normal",
           marketTrend: "stable",
           estimatedPrice: scanResult.estimatedPriceUsd,
-          imageUrl: scanResult.imageUrl ?? undefined,
+          imageUrl: scanResult.imageUrl ?? previewUri ?? undefined,
         });
         showFeedback("success", `${scanResult.name} added to your binder.`);
       } else if (scanMode === "Flea") {
@@ -672,7 +672,7 @@ export default function ScannerScreen() {
             cardId,
             cardName: scanResult.name,
             setName: scanResult.set,
-            imageUrl: scanResult.imageUrl ?? undefined,
+            imageUrl: scanResult.imageUrl ?? previewUri ?? undefined,
             rarity: scanResult.rarity,
             marketPrice: scanResult.estimatedPriceUsd,
           });
