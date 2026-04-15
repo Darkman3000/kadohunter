@@ -871,8 +871,14 @@ function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; ava
     </ScrollView>
 
     <Modal visible={showSessionHistory} animationType="slide" transparent onRequestClose={() => setShowSessionHistory(false)}>
-      <View className="flex-1 bg-black/80 justify-end">
-        <View className="bg-midnight rounded-t-[32px] border-t border-white/10 p-6 pb-10 max-h-[80%]">
+      <Pressable
+        className="flex-1 bg-black/80 justify-end"
+        onPress={() => setShowSessionHistory(false)}
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          className="bg-midnight rounded-t-[32px] border-t border-white/10 p-6 pb-10 max-h-[80%]"
+        >
           <Text className="text-white text-xl font-black mb-1">Session history</Text>
           <Text className="text-slate-text text-xs mb-4 uppercase tracking-widest">Completed flea market hunts</Text>
           {sessionHistory === undefined ? (
@@ -906,8 +912,8 @@ function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; ava
           >
             <Text className="text-light-slate font-bold">Close</Text>
           </Pressable>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
     </>
   );

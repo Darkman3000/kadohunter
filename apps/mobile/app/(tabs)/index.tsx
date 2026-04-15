@@ -27,7 +27,7 @@ import {
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAction, useMutation, useQuery } from "convex/react";
-import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
 import {
   cancelAnimation,
   Easing,
@@ -1106,19 +1106,38 @@ export default function ScannerScreen() {
         </View>
 
         {(scanResult || previewUri) && !isLargeDesktop && (
-          <SlideUpView style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50 }}>
-            <ScanResultCard
-              scanResult={scanResult}
-              previewUri={previewUri}
-              isSaving={isSaving}
-              canSaveToBinder={canSaveToBinder}
-              isSignedIn={isSignedIn ?? false}
-              isAuthLoaded={isAuthLoaded}
-              hasUser={Boolean(currentUser?._id)}
-              onDismiss={handleDismissResult}
-              onSave={handleSaveResult}
-            />
-          </SlideUpView>
+          <>
+            {/* Static Backdrop for Scan Results */}
+            <Animated.View
+              entering={FadeIn.duration(300)}
+              exiting={FadeOut.duration(250)}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.55)",
+                zIndex: 45,
+              }}
+            >
+              <Pressable style={{ flex: 1 }} onPress={handleDismissResult} />
+            </Animated.View>
+
+            <SlideUpView style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50 }}>
+              <ScanResultCard
+                scanResult={scanResult}
+                previewUri={previewUri}
+                isSaving={isSaving}
+                canSaveToBinder={canSaveToBinder}
+                isSignedIn={isSignedIn ?? false}
+                isAuthLoaded={isAuthLoaded}
+                hasUser={Boolean(currentUser?._id)}
+                onDismiss={handleDismissResult}
+                onSave={handleSaveResult}
+              />
+            </SlideUpView>
+          </>
         )}
 
         {/* Desktop: result panel shown in a right sidebar */}
