@@ -605,7 +605,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
           )}
         </View>
       ) : null}
-      <View style={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, maxWidth: 1320, width: "100%", alignSelf: "center", zIndex: 1 }}>
+      <View style={{ paddingHorizontal: GRID_PADDING, paddingTop: 24, paddingBottom: 16, maxWidth: 1320, width: "100%", alignSelf: "center", zIndex: 1 }}>
           <View style={{ marginBottom: 20 }}>
             {/* Embossed inside-cover nameplate */}
             <View style={{
@@ -809,7 +809,7 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
           ) : (
             // Mobile: two rows — filters + view toggle on top, search full-width below
             <View style={{ gap: 8, marginBottom: 16 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8 }}>
                 <DesktopDropdown
                   title="Collection"
                   subtitle="Show cards from one game or all"
@@ -879,7 +879,6 @@ function BinderScreenContent({ onRetry }: { onRetry: () => void }) {
                     }
                   />
                 )}
-                <View style={{ flex: 1 }} />
                 {/* View toggle */}
                 <View style={{ flexDirection: "row", backgroundColor: "rgba(10,15,28,0.5)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 10, height: 44, overflow: "hidden" }}>
                   {(["list", "grid"] as const).map((mode) => (
