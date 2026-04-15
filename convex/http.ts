@@ -442,4 +442,15 @@ http.route({
   }),
 });
 
+http.route({
+  path: "/api/detect",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, {
+      status: 204,
+      headers: CORS_HEADERS,
+    });
+  }),
+});
+
 export default http;

@@ -159,7 +159,10 @@ export default function ScannerScreen() {
 
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [detectedBoxes, setDetectedBoxes] = useState<Array<{ box_2d: number[] }>>([]);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectedBoxes, setDetectedBoxes] = useState<Array<{ box_2d: number[] }>>([])
+  const [awaitingSelection, setAwaitingSelection] = useState(false);
+  const pendingBase64Ref = useRef<string | null>(null);;
   const [scanSource, setScanSource] = useState<ScanSource | null>(null);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<RecognitionResult | null>(null);
@@ -263,47 +266,19 @@ export default function ScannerScreen() {
     handleOpenSettings();
   }, [handleOpenSettings, permission?.canAskAgain, requestPermission]);
 
-  const runRecognition = useCallback(
-    async (base64: string, source: ScanSource) => {
-      if (isScanning || isSaving) return;
-
-      setDetectedBoxes([]);
-      setScanSource(source);
-      setScanResult(null);
-      setFeedback(null);
+  /** Run identification on an already-isolated base64 image. */
+  const runIdentify = useCallback(
+    async (base64: string) => {
       setIsScanning(true);
-
       try {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-        const geminiProvider = recognitionService as any;
-        if (geminiProvider.detectEdges) {
-          geminiProvider.detectEdges(base64).then((boxes: any) => {
-            if (boxes && boxes.length > 0) {
-              setDetectedBoxes(boxes);
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }
-          }).catch((e: any) => {
-            console.warn("Edge detection failed:", e);
-          });
-        }
-
         const result = await recognitionService.identify(base64);
-
         setScanResult(result);
 
         if (result.confidence < LOW_CONFIDENCE_THRESHOLD) {
-          await Haptics.notificationAsync(
-            Haptics.NotificationFeedbackType.Warning
-          );
-          showFeedback(
-            "warning",
-            "Low confidence. Verify the card details before saving."
-          );
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          showFeedback("warning", "Low confidence. Verify the card details before saving.");
         } else {
-          await Haptics.notificationAsync(
-            Haptics.NotificationFeedbackType.Success
-          );
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           showFeedback("success", `${result.name} identified.`);
         }
       } catch (error) {
@@ -315,9 +290,129 @@ export default function ScannerScreen() {
       } finally {
         setIsScanning(false);
         setScanSource(null);
+        setAwaitingSelection(false);
       }
     },
-    [isSaving, isScanning, showFeedback]
+    [showFeedback]
+  );
+
+  const runRecognition = useCallback(
+    async (base64: string, source: ScanSource) => {
+      if (isScanning || isSaving || isDetecting) return;
+
+      setDetectedBoxes([]);
+      setAwaitingSelection(false);
+      setScanSource(source);
+      setScanResult(null);
+      setFeedback(null);
+      pendingBase64Ref.current = base64;
+
+      try {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+        const geminiProvider = recognitionService as any;
+        if (geminiProvider.detectEdges) {
+          // Step 1: Run fast edge detection first
+          setIsDetecting(true);
+          showFeedback("info", "Scanning for cards...");
+          let boxes: Array<{ box_2d: number[] }> = [];
+          try {
+            boxes = await geminiProvider.detectEdges(base64);
+          } catch (e: any) {
+            console.warn("Edge detection failed:", e);
+          }
+          setIsDetecting(false);
+
+          if (boxes && boxes.length > 0) {
+            setDetectedBoxes(boxes);
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+
+          // Step 2: If multiple cards detected, pause and let user pick
+          if (boxes.length > 1) {
+            setAwaitingSelection(true);
+            showFeedback("info", `${boxes.length} cards detected — tap one to scan.`);
+            return; // Stop here. User will tap a box to continue.
+          }
+        }
+
+        // Single card (or no detection available) — scan immediately
+        setIsScanning(true);
+        // Fire detection visual in parallel for single-card lock-on effect
+        const result = await recognitionService.identify(base64);
+        setScanResult(result);
+
+        if (result.confidence < LOW_CONFIDENCE_THRESHOLD) {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          showFeedback("warning", "Low confidence. Verify the card details before saving.");
+        } else {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          showFeedback("success", `${result.name} identified.`);
+        }
+      } catch (error) {
+        const message = getRecognitionErrorMessage(error);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        showFeedback("error", message);
+        Alert.alert("Recognition failed", message);
+        setPreviewUri(null);
+      } finally {
+        setIsScanning(false);
+        setIsDetecting(false);
+        setScanSource(null);
+      }
+    },
+    [isSaving, isScanning, isDetecting, showFeedback, runIdentify]
+  );
+
+  /** User tapped a detected bounding box — crop and scan that region. */
+  const handleBoxTap = useCallback(
+    async (box: { box_2d: number[] }) => {
+      if (isScanning || !previewUri || !pendingBase64Ref.current) return;
+
+      const [ymin, xmin, ymax, xmax] = box.box_2d;
+
+      try {
+        setAwaitingSelection(false);
+        showFeedback("info", "Cropping and scanning...");
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+        // Highlight only the tapped box
+        setDetectedBoxes([box]);
+
+        // Crop the original image to the bounding box region
+        const originX = xmin / 1000;
+        const originY = ymin / 1000;
+        const cropWidth = (xmax - xmin) / 1000;
+        const cropHeight = (ymax - ymin) / 1000;
+
+        const cropped = await manipulateAsync(
+          previewUri,
+          [
+            {
+              crop: {
+                originX: Math.round(originX * 640),
+                originY: Math.round(originY * 640 * 1.4), // approximate aspect ratio
+                width: Math.round(cropWidth * 640),
+                height: Math.round(cropHeight * 640 * 1.4),
+              },
+            },
+            { resize: { width: 640 } },
+          ],
+          { compress: 0.7, format: SaveFormat.JPEG, base64: true }
+        );
+
+        if (!cropped.base64) {
+          throw new Error("Failed to crop the selected card.");
+        }
+
+        await runIdentify(cropped.base64);
+      } catch (error) {
+        const message = getRecognitionErrorMessage(error);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        showFeedback("error", message);
+      }
+    },
+    [isScanning, previewUri, showFeedback, runIdentify]
   );
 
   const handleCapture = useCallback(async () => {
@@ -795,27 +890,38 @@ export default function ScannerScreen() {
                     const height = `${((ymax - ymin) / 1000) * 100}%`;
 
                     return (
-                      <Animated.View 
+                      <Pressable
                         key={idx}
-                        entering={SlideInDown.springify().delay(idx * 150)}
-                        style={{
-                           position: 'absolute',
-                           top, left, width, height,
-                           borderWidth: 2,
-                           borderColor: '#34d399',
-                           backgroundColor: 'rgba(52, 211, 153, 0.1)',
-                           borderRadius: 8,
-                           shadowColor: '#34d399',
-                           shadowOpacity: 0.8,
-                           shadowRadius: 10,
-                           shadowOffset: { width: 0, height: 0 }
-                        }}
+                        onPress={() => awaitingSelection && handleBoxTap(box)}
+                        style={{ position: 'absolute', top, left, width, height, zIndex: 30 }}
                       >
-                         <View className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-emerald-400" />
-                         <View className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-emerald-400" />
-                         <View className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-emerald-400" />
-                         <View className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-emerald-400" />
-                      </Animated.View>
+                        <Animated.View 
+                          entering={SlideInDown.springify().delay(idx * 150)}
+                          style={{
+                             flex: 1,
+                             borderWidth: awaitingSelection ? 2.5 : 2,
+                             borderColor: awaitingSelection ? '#6ee7b7' : '#34d399',
+                             backgroundColor: awaitingSelection ? 'rgba(52, 211, 153, 0.18)' : 'rgba(52, 211, 153, 0.1)',
+                             borderRadius: 8,
+                             shadowColor: '#34d399',
+                             shadowOpacity: 0.8,
+                             shadowRadius: 10,
+                             shadowOffset: { width: 0, height: 0 }
+                          }}
+                        >
+                           <View className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-emerald-400" />
+                           <View className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-emerald-400" />
+                           <View className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-emerald-400" />
+                           <View className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-emerald-400" />
+                           {awaitingSelection && (
+                             <View className="absolute inset-0 items-center justify-center">
+                               <View className="bg-black/70 px-3 py-1.5 rounded-full border border-emerald-400/40">
+                                 <Text className="text-emerald-300 text-[10px] font-bold tracking-widest uppercase">TAP TO SCAN</Text>
+                               </View>
+                             </View>
+                           )}
+                        </Animated.View>
+                      </Pressable>
                     );
                  })}
               </View>
