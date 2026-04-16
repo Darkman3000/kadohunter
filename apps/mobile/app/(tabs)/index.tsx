@@ -1121,7 +1121,7 @@ export default function ScannerScreen() {
               onPress={handleDismissResult}
               style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)' }}
             />
-            <Animated.View entering={SlideInDown.springify().damping(18).stiffness(150)} exiting={SlideOutDown} style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+            <Animated.View entering={SlideInDown.duration(250)} exiting={SlideOutDown} style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
               <Pressable onPress={(e) => e.stopPropagation()}>
                 <ScanResultCard
                   scanResult={scanResult}

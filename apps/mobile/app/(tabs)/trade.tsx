@@ -879,7 +879,7 @@ function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; ava
         onPress={() => setShowSessionHistory(false)}
       >
         <AnimatedPressable
-          entering={SlideInDown.springify().damping(18).stiffness(150)}
+          entering={SlideInDown.duration(250)}
           onPress={(e) => e.stopPropagation()}
           className="bg-midnight rounded-t-[32px] border-t border-white/10 p-6 pb-10 max-h-[80%]"
         >

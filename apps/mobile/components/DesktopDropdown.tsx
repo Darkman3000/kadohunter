@@ -239,7 +239,7 @@ export function DesktopDropdown({
           onPress={() => setOpen(false)}
         >
           <AnimatedPressable
-            entering={SlideInDown.springify().damping(18).stiffness(150)}
+            entering={SlideInDown.duration(250)}
             onPress={(e) => e.stopPropagation()}
             style={{
               backgroundColor: "#0a192f",
