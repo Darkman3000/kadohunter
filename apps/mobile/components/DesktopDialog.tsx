@@ -6,7 +6,6 @@
  */
 import React from "react";
 import { Modal, Platform, Pressable, ScrollView, View } from "react-native";
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 interface DesktopDialogProps {
@@ -84,7 +83,7 @@ export function DesktopDialog({
   return (
     <Modal
       visible={visible}
-      animationType="fade"
+      animationType="slide"
       transparent
       onRequestClose={onClose}
     >
@@ -96,8 +95,8 @@ export function DesktopDialog({
         }}
         onPress={onClose}
       >
-        <Animated.View
-          entering={SlideInDown.springify().damping(20).stiffness(150)}
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
           style={{
             backgroundColor: "#0a192f",
             borderTopLeftRadius: 28,
@@ -107,15 +106,13 @@ export function DesktopDialog({
             maxHeight: "85%",
           }}
         >
-          <Pressable onPress={(e) => e.stopPropagation()}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {children}
-            </ScrollView>
-          </Pressable>
-        </Animated.View>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {children}
+          </ScrollView>
+        </Pressable>
       </Pressable>
     </Modal>
   );

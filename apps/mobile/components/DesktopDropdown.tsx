@@ -15,7 +15,6 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { KadoColors } from "@/constants/theme";
 import { BREAKPOINTS } from "@/constants/breakpoints";
 
@@ -228,7 +227,7 @@ export function DesktopDropdown({
       <Pressable onPress={handleTriggerPress}>{trigger}</Pressable>
       <Modal
         visible={open}
-        animationType="fade"
+        animationType="slide"
         transparent
         onRequestClose={() => setOpen(false)}
       >
@@ -236,68 +235,67 @@ export function DesktopDropdown({
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}
           onPress={() => setOpen(false)}
         >
-          <Animated.View
-            entering={SlideInDown.springify().damping(20).stiffness(150)}
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
             style={{
               backgroundColor: "#0a192f",
               borderTopLeftRadius: 28,
               borderTopRightRadius: 28,
               borderTopWidth: 1,
               borderColor: "rgba(255,255,255,0.1)",
+              padding: 24,
               paddingBottom: 40,
               maxHeight: "80%",
             }}
           >
-            <Pressable onPress={(e) => e.stopPropagation()} style={{ padding: 24 }}>
-              <Text style={{ color: "#fff", fontSize: 20, fontWeight: "900", marginBottom: 4 }}>{title}</Text>
-              {subtitle && (
-                <Text style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 16 }}>
-                  {subtitle}
-                </Text>
-              )}
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {options.map((opt) => {
-                  const isActive = opt.id === selectedId;
-                  return (
-                    <Pressable
-                      key={opt.id}
-                      onPress={() => handleSelect(opt.id)}
-                      style={{
-                        paddingVertical: 14,
-                        paddingHorizontal: 16,
-                        borderRadius: 12,
-                        marginBottom: 8,
-                        borderWidth: 1,
-                        borderColor: isActive ? "rgba(199,167,123,0.4)" : "rgba(255,255,255,0.08)",
-                        backgroundColor: isActive ? "rgba(199,167,123,0.1)" : "rgba(255,255,255,0.04)",
-                      }}
-                    >
-                      <Text style={{ color: isActive ? KadoColors.umber : "#ccd6f6", fontWeight: "700", fontSize: 14 }}>
-                        {opt.label}
-                      </Text>
-                      {opt.sub && (
-                        <Text style={{ color: "#64748b", fontSize: 12, marginTop: 2 }}>{opt.sub}</Text>
-                      )}
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-              <Pressable
-                onPress={() => setOpen(false)}
-                style={{
-                  marginTop: 8,
-                  paddingVertical: 14,
-                  alignItems: "center",
-                  borderRadius: 12,
-                  backgroundColor: "rgba(255,255,255,0.05)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.1)",
-                }}
-              >
-                <Text style={{ color: "#ccd6f6", fontWeight: "700" }}>Close</Text>
-              </Pressable>
+            <Text style={{ color: "#fff", fontSize: 20, fontWeight: "900", marginBottom: 4 }}>{title}</Text>
+            {subtitle && (
+              <Text style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 16 }}>
+                {subtitle}
+              </Text>
+            )}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {options.map((opt) => {
+                const isActive = opt.id === selectedId;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    onPress={() => handleSelect(opt.id)}
+                    style={{
+                      paddingVertical: 14,
+                      paddingHorizontal: 16,
+                      borderRadius: 12,
+                      marginBottom: 8,
+                      borderWidth: 1,
+                      borderColor: isActive ? "rgba(199,167,123,0.4)" : "rgba(255,255,255,0.08)",
+                      backgroundColor: isActive ? "rgba(199,167,123,0.1)" : "rgba(255,255,255,0.04)",
+                    }}
+                  >
+                    <Text style={{ color: isActive ? KadoColors.umber : "#ccd6f6", fontWeight: "700", fontSize: 14 }}>
+                      {opt.label}
+                    </Text>
+                    {opt.sub && (
+                      <Text style={{ color: "#64748b", fontSize: 12, marginTop: 2 }}>{opt.sub}</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Pressable
+              onPress={() => setOpen(false)}
+              style={{
+                marginTop: 8,
+                paddingVertical: 14,
+                alignItems: "center",
+                borderRadius: 12,
+                backgroundColor: "rgba(255,255,255,0.05)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.1)",
+              }}
+            >
+              <Text style={{ color: "#ccd6f6", fontWeight: "700" }}>Close</Text>
             </Pressable>
-          </Animated.View>
+          </Pressable>
         </Pressable>
       </Modal>
     </>
