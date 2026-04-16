@@ -17,6 +17,9 @@ import {
 } from "react-native";
 import { KadoColors } from "@/constants/theme";
 import { BREAKPOINTS } from "@/constants/breakpoints";
+import Animated, { SlideInDown } from "react-native-reanimated";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export interface DropdownOption {
   id: string;
@@ -227,7 +230,7 @@ export function DesktopDropdown({
       <Pressable onPress={handleTriggerPress}>{trigger}</Pressable>
       <Modal
         visible={open}
-        animationType="slide"
+        animationType="fade"
         transparent
         onRequestClose={() => setOpen(false)}
       >
@@ -235,7 +238,8 @@ export function DesktopDropdown({
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}
           onPress={() => setOpen(false)}
         >
-          <Pressable
+          <AnimatedPressable
+            entering={SlideInDown.springify().damping(18).stiffness(150)}
             onPress={(e) => e.stopPropagation()}
             style={{
               backgroundColor: "#0a192f",
@@ -295,7 +299,7 @@ export function DesktopDropdown({
             >
               <Text style={{ color: "#ccd6f6", fontWeight: "700" }}>Close</Text>
             </Pressable>
-          </Pressable>
+          </AnimatedPressable>
         </Pressable>
       </Modal>
     </>

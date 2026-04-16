@@ -27,7 +27,7 @@ import {
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAction, useMutation, useQuery } from "convex/react";
-import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
+import Animated, { SlideInDown, SlideOutDown, FadeIn, FadeOut } from "react-native-reanimated";
 import {
   cancelAnimation,
   Easing,
@@ -42,6 +42,8 @@ import { KadoColors } from "@/constants/theme";
 import { BREAKPOINTS } from "@/constants/breakpoints";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getOrCreateDeviceId } from "@/lib/device-id";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 import {
   recognitionService,
   type RecognitionResult,
@@ -1112,19 +1114,29 @@ export default function ScannerScreen() {
         </View>
 
         {(scanResult || previewUri) && !isLargeDesktop && (
-          <SlideUpView style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 50 }}>
-            <ScanResultCard
-              scanResult={scanResult}
-              previewUri={previewUri}
-              isSaving={isSaving}
-              canSaveToBinder={canSaveToBinder}
-              isSignedIn={isSignedIn ?? false}
-              isAuthLoaded={isAuthLoaded}
-              hasUser={Boolean(currentUser?._id)}
-              onDismiss={handleDismissResult}
-              onSave={handleSaveResult}
+          <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 50, elevation: 5 }}>
+            <AnimatedPressable
+              entering={FadeIn.duration(300)}
+              exiting={FadeOut.duration(200)}
+              onPress={handleDismissResult}
+              style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)' }}
             />
-          </SlideUpView>
+            <Animated.View entering={SlideInDown.springify().damping(18).stiffness(150)} exiting={SlideOutDown} style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+              <Pressable onPress={(e) => e.stopPropagation()}>
+                <ScanResultCard
+                  scanResult={scanResult}
+                  previewUri={previewUri}
+                  isSaving={isSaving}
+                  canSaveToBinder={canSaveToBinder}
+                  isSignedIn={isSignedIn ?? false}
+                  isAuthLoaded={isAuthLoaded}
+                  hasUser={Boolean(currentUser?._id)}
+                  onDismiss={handleDismissResult}
+                  onSave={handleSaveResult}
+                />
+              </Pressable>
+            </Animated.View>
+          </View>
         )}
 
         {/* Desktop: result panel shown in a right sidebar */}
@@ -1155,10 +1167,4 @@ export default function ScannerScreen() {
   );
 }
 
-function SlideUpView({ children, style }: { children: React.ReactNode, style?: any }) {
-  return (
-    <Animated.View entering={SlideInDown.springify().damping(18).stiffness(150)} exiting={SlideOutDown} style={style}>
-      {children}
-    </Animated.View>
-  );
-}
+// (Removed SlideUpView in favor of inline Animated views)

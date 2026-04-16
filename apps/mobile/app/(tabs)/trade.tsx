@@ -31,6 +31,9 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getOrCreateDeviceId } from "@/lib/device-id";
 import { FriendPicker, type PickableFriend } from "../../components/FriendPicker";
 import { CardPicker, type PickableCard } from "../../components/CardPicker";
+import Animated, { SlideInDown } from "react-native-reanimated";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type TradeTab = "Desk" | "Flea";
 
@@ -870,12 +873,13 @@ function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; ava
       </View>
     </ScrollView>
 
-    <Modal visible={showSessionHistory} animationType="slide" transparent onRequestClose={() => setShowSessionHistory(false)}>
+    <Modal visible={showSessionHistory} animationType="fade" transparent onRequestClose={() => setShowSessionHistory(false)}>
       <Pressable
         className="flex-1 bg-black/80 justify-end"
         onPress={() => setShowSessionHistory(false)}
       >
-        <Pressable
+        <AnimatedPressable
+          entering={SlideInDown.springify().damping(18).stiffness(150)}
           onPress={(e) => e.stopPropagation()}
           className="bg-midnight rounded-t-[32px] border-t border-white/10 p-6 pb-10 max-h-[80%]"
         >
@@ -912,7 +916,7 @@ function FleaMarketView({ isDesktop, availableWidth }: { isDesktop: boolean; ava
           >
             <Text className="text-light-slate font-bold">Close</Text>
           </Pressable>
-        </Pressable>
+        </AnimatedPressable>
       </Pressable>
     </Modal>
     </>

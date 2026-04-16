@@ -7,6 +7,9 @@
 import React from "react";
 import { Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import Animated, { SlideInDown } from "react-native-reanimated";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface DesktopDialogProps {
   visible: boolean;
@@ -83,7 +86,7 @@ export function DesktopDialog({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent
       onRequestClose={onClose}
     >
@@ -95,7 +98,8 @@ export function DesktopDialog({
         }}
         onPress={onClose}
       >
-        <Pressable
+        <AnimatedPressable
+          entering={SlideInDown.springify().damping(18).stiffness(150)}
           onPress={(e) => e.stopPropagation()}
           style={{
             backgroundColor: "#0a192f",
@@ -112,7 +116,7 @@ export function DesktopDialog({
           >
             {children}
           </ScrollView>
-        </Pressable>
+        </AnimatedPressable>
       </Pressable>
     </Modal>
   );
